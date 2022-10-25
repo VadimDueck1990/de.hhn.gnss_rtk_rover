@@ -1,14 +1,12 @@
-from machine import Pin
-import utime
-
-led = Pin('LED', Pin.OUT)
+import nmeapoller_async
+import uart_nmea
 
 
-def blink_led():
-    while True:
-        led.toggle()
-        utime.sleep_ms(500)
+def start_app():
+    print("running main")
+    # nmeapoller_async.test()
+    uart_nmea.test()
 
 
 if __name__ == "__main__":
-    blink_led()
+    start_app()

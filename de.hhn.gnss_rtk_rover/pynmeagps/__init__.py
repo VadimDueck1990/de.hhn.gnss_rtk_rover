@@ -16,7 +16,7 @@ from pynmeagps.exceptions import (
 )
 from pynmeagps.nmeamessage import NMEAMessage
 from pynmeagps.nmeareader import NMEAReader
-from pynmeagps.socket_stream import SocketStream
+# from pynmeagps.socket_stream import SocketStream
 from pynmeagps.nmeatypes_core import *
 from pynmeagps.nmeatypes_get import *
 from pynmeagps.nmeahelpers import *

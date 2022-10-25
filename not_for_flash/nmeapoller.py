@@ -22,10 +22,7 @@ Edited and adapted to upython on 9 Sep 2022
 import machine
 from time import sleep
 from pynmeagps import (
-    NMEAMessage,
     NMEAReader,
-    POLL,
-    NMEA_MSGIDS,
 )
 
 reading = False

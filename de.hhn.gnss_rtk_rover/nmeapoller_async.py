@@ -23,10 +23,7 @@ Created on 7 Mar 2021
 # pylint: disable=invalid-name
 
 import uasyncio as asyncio
-import gc
-from sys import platform
-from machine import UART, Pin
-from time import sleep
+from machine import UART, Pin, I2C
 from pynmeagps import (
     NMEAMessage,
     NMEAReader,
@@ -36,8 +33,8 @@ from pynmeagps import (
 
 # initialise global variables
 reading = False
-masterTx = Pin(4)
-masterRx = Pin(5)
+masterTx = Pin(0)
+masterRx = Pin(1)
 
 
 async def read_messages(nmeareader):
@@ -46,13 +43,14 @@ async def read_messages(nmeareader):
     """
     # pylint: disable=unused-variable, broad-except
     while True:
-#         try:
+        # try:
         (raw_data, parsed_data) = await nmeareader.read_uart()
-#         await asyncio.sleep(0.5)
         if parsed_data:
             print(parsed_data)
         if raw_data is not None:
             print(raw_data)
+
+
 #         except Exception as err:
 #             print(f"\n\nSomething went wrong {err}\n\n")
 #             continue
@@ -68,35 +66,30 @@ async def send_message(swriter, message):
 
 
 async def main():
-    
     # initialize serials
-    i2c_zed_f9p = machine.I2C(0, scl=machine.Pin(17), sda=machine.Pin(16))
-    
-    
-    uart = UART(1, 38400, timeout=0)
-    uart.init(bits=8, parity=None, stop=1, tx=masterTx, rx=masterRx)
-    
-    nmr = NMEAReader(i2c=i2c_zed_f9p, uart=uart)
-    
-    reading = True
-    print("\nStarting read task...\n")
-    asyncio.create_task(read_messages(nmr))
+    i2c_zed_f9p = I2C(0, scl=Pin(17), sda=Pin(16))
 
-#     # DO OTHER STUFF HERE WHILE READING TASK IN BACKGROUND...
-#     for msgid in NMEA_MSGIDS:
-#         print(f"\n\nSending a GNQ message to poll for an {msgid} response...\n\n")
-#         msg = NMEAMessage("EI", "GNQ", POLL, msgId=msgid)
-#         await send_message(nmr.swriter, msg)
-#         await asyncio.sleep(1)
-# 
-#     print("\nPolling complete. Pausing for any final responses...\n")
+    uart = UART(0, 38400, timeout=500)
+    uart.init(bits=8, parity=None, stop=1, tx=masterTx, rx=masterRx, rxbuf=1024)
+
+    nmr = NMEAReader(i2c=i2c_zed_f9p, uart=uart)
+
+    print("\nStarting read task...\n")
+    read_task = asyncio.create_task(read_messages(nmr))
+
+    # DO OTHER STUFF HERE WHILE READING TASK IN BACKGROUND...
+    # for msgid in NMEA_MSGIDS:
+    #     print(f"\n\nSending a GNQ message to poll for an {msgid} response...\n\n")
+    #     msg = NMEAMessage("EI", "GNQ", POLL, msgId=msgid)
+    #     await send_message(nmr.swriter, msg)
+    #     await asyncio.sleep(1)
+    #
+    #     print("\nPolling complete. Pausing for any final responses...\n")
     while True:
         await asyncio.sleep(1)
 
-    reading = False
-    print("\nProcessing Complete")
-    
+
 def test():
     asyncio.run(main())
-    
+
 test()

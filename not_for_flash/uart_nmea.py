@@ -13,12 +13,14 @@ masterRx = Pin(5)
 uart = UART(1, 9600, timeout=0)
 uart.init(baudrate=38400, bits=8, parity=None, stop=1, tx=masterTx, rx=masterRx)
 
+
 async def sender():
     swriter = asyncio.StreamWriter(uart, {})
     while True:
         swriter.write('Hello uart\n')
         await swriter.drain()
         await asyncio.sleep(2)
+
 
 async def receiver():
     print("in receiver")
@@ -27,11 +29,13 @@ async def receiver():
         res = await sreader.readline()
         print('Received', res)
 
+
 async def main():
     # asyncio.create_task(sender())
     asyncio.create_task(receiver())
     while True:
         await asyncio.sleep(1)
+
 
 def test():
     try:
@@ -41,5 +45,3 @@ def test():
     finally:
         asyncio.new_event_loop()
         print('as_demos.auart.test() to run again.')
-
-test()

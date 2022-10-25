@@ -1,6 +1,5 @@
 import machine
-import utime
-from pynmeagps.nmeatypes_core import NMEA_HDR, VALCKSUM
+from pynmeagps import NMEA_HDR
 
 # Create I2C object
 i2c_oled = machine.I2C(1, scl=machine.Pin(3), sda=machine.Pin(2))

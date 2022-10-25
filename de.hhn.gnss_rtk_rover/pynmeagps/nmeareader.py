@@ -22,6 +22,7 @@ Created on 4 Mar 2021
 """
 
 from builtins import tuple
+import gc
 import uasyncio as asyncio
 from pynmeagps import NMEAMessage
 from pynmeagps import exceptions as nme
@@ -86,7 +87,6 @@ class NMEAReader:
             return (raw_data, parsed_data)
             return tuple[raw_data, parsed_data]
         raise StopIteration
-    
 
     def read_i2c(self) -> tuple:
         """
@@ -128,7 +128,7 @@ class NMEAReader:
                     raise nme.NMEAStreamError(
                         "Unknown data header"
                         )
-        return (raw_data, parsed_data)
+        return raw_data, parsed_data
 
     async def read_uart(self) -> tuple:
         """
@@ -143,35 +143,13 @@ class NMEAReader:
         raw_data = None
         parsed_data = None
         
-        while reading:  # loop until end of valid NMEA message or EOF
-            byte1 = await self.sreader.readexactly(1) # read 1st byte
-            if len(byte1) < 1: #EOF
-                break
-            if byte1 != b"\x24":  # not NMEA, discard and continue
-                continue
-            byte2 = await self.sreader.readexactly(1)  # read 2nd byte to confirm protocol
-            if len(byte2) < 1:  # EOF
-                break
-            bytehdr = byte1 + byte2
-            print(str(bytehdr))
-            if bytehdr in NMEA_HDR:  # it's a NMEA message
-                byte_payload = await self.sreader.readline()
-                print(str(byte_payload))
-                if byte_payload[-2:] != b"\x0d\x0a":  # EOF
-                    break
-            
-                raw_data = bytehdr + byte_payload
-                print(str(raw_data))
-                parsed_data = self.parse(
-                    raw_data, validate=self._validate, msgmode=self._mode
-                )
-                reading = False
-            else:  # it's not a NMEA message (UBX or something else)
-                if self._nmea_only:  # raise error and quit
-                    raise nme.NMEAStreamError(
-                        "Unknown data header"
-                        )
-        return (raw_data, parsed_data)
+        raw_data = await self.sreader.readline()
+        print(str(raw_data))
+        parsed_data = self.parse(
+            raw_data, validate=self._validate, msgmode=self._mode
+        )
+        
+        return raw_data, parsed_data
 
     def iterate(self, **kwargs) -> tuple:  # type: ignore
         """
@@ -234,12 +212,7 @@ class NMEAReader:
                     raise nme.NMEAParseError(
                         "Message invalid checksum: {}. Should be {}.".format(checksum, calc_checksum(message))
                     )
-#             if msgid == "GGA":
-#                 return NMEAMessage(
-#                     talker, msgid, msgmode, payload=payload, checksum=checksum
-#                 )
-#             else:
-#                 return None
+
             return NMEAMessage(
                     talker, msgid, msgmode, payload=payload, checksum=checksum
                 )
