@@ -1,10 +1,5 @@
 from app_manager import AppManager
 import uasyncio
-from uasyncio import Event
-from utils.globals import (
-    WIFI_SSID,
-    WIFI_PW,
-)
 
 
 async def main():
@@ -13,7 +8,7 @@ async def main():
     ntrip_sync_task = uasyncio.create_task(app_manager.sync_ntrip_client())
     await uasyncio.sleep(20)
     ntrip_sync_task.cancel()
-    await  uasyncio.sleep(4)
+    await uasyncio.sleep(4)
     print("all finished")
 
 uasyncio.run(main())

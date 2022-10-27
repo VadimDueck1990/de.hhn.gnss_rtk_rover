@@ -10,8 +10,10 @@ Created on 4 Sep 2022
 
 :author: vdueck
 """
+import utils.logging as logging
 
 from utils.wifimanager import WiFiManager
+import utils.logging
 import uasyncio
 from uasyncio import Event
 from utils.globals import (
@@ -20,6 +22,7 @@ from utils.globals import (
     WIFI_CHECK_TIME,
 )
 
+_logger = logging.getLogger("app_manager")
 
 class AppManager:
     """
@@ -39,11 +42,11 @@ class AppManager:
         Connect the ucontroller to the Wi-Fi.
 
         """
-        print("init")
+        _logger.info("initializing WiFiManager")
         self._ntripevent = Event()
         self._wifi = WiFiManager(WIFI_SSID, WIFI_PW)
         self._wifi_connected = await self._wifi.connect()
-        print("Connected: ", self._wifi_connected)
+        _logger.info("Wi-Fi connected: " + str(self._wifi_connected))
         if self._wifi_connected:
             self._ntripevent.set()
 
