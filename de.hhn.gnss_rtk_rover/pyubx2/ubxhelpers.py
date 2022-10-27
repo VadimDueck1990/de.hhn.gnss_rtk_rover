@@ -11,7 +11,7 @@ Created on 15 Dec 2020
 # pylint: disable=invalid-name
 
 import struct
-from datetime import datetime, timedelta
+# from datetime import datetime, timedelta
 from pyubx2.ubxtypes_core import GNSSLIST, UBX_HDR, NMEA_HDR
 import pyubx2.ubxtypes_core as ubt
 import pyubx2.ubxtypes_configdb as ubcdb
