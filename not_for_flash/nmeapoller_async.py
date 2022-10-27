@@ -85,7 +85,8 @@ async def main():
     #     await asyncio.sleep(1)
     #
     #     print("\nPolling complete. Pausing for any final responses...\n")
-    print("init")
+    while True:
+        await asyncio.sleep(1)
 
 
 def test():

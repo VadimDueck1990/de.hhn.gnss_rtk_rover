@@ -11,15 +11,16 @@ Created on 10 Oct 2022
 
 :author: vdueck
 """
+import binascii
 # pylint: disable=invalid-name
 import uasyncio
 from uasyncio import Event
 from machine import UART
 import time
-from queue import Queue
+from primitives.queue import Queue
 import socket
-from base64 import b64encode
-from pyubx2 import UBXReader, RTCM3_PROTOCOL, ERR_IGNORE
+from pyubx2.ubxreader import UBXReader
+from pyubx2.ubxtypes_core import RTCM3_PROTOCOL, ERR_IGNORE
 from pyrtcm import (
     RTCMParseError,
     RTCMMessageError,
@@ -288,16 +289,16 @@ class GNSSNTRIPClient:
 
         mountpoint = "/" + mountpoint  # sourcetable request
         user = user + ":" + password
-        user = b64encode(user.encode(encoding="utf-8"))
-        req = (
-            f"GET {mountpoint} HTTP/1.1\r\n"
-            + f"User-Agent: {USERAGENT}\r\n"
-            + f"Host: {host}\r\n"
-            + f"Authorization: Basic {user.decode(encoding='utf-8')}\r\n"
-            + f"Ntrip-Version: Ntrip/{version}\r\n"
-        )
-        req += "\r\n"  # NECESSARY!!!
-        return req.encode(encoding="utf-8")
+        user = bytes(user, 'utf-8')
+        user = binascii.b2a_base64(user)
+
+        reqline1 = f"GET {mountpoint} HTTP/1.1\r\n"
+        reqline2 = f"User-Agent: {USERAGENT}\r\n"
+        reqline3 = f"Host: {host}\r\n"
+        reqline4 = f"Authorization: Basic {user.decode(encoding='utf-8')}\r\n"
+        reqline5 = f"Ntrip-Version: Ntrip/{version}\r\n"
+        req = reqline1 + reqline2 + reqline3 + reqline4 + reqline5 + "\r\n"  # NECESSARY!!!
+        return bytes(req, 'utf-8')
 
     def _formatGGA(self) -> tuple:
         """

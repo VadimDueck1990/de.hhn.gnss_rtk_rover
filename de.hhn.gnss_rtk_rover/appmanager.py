@@ -15,6 +15,7 @@ import uasyncio
 from uasyncio import Event
 import utils.logging as logging
 from utils.wifimanager import WiFiManager
+from gnss.gnssntripclient import GNSSNTRIPClient
 from utils.globals import (
     WIFI_SSID,
     WIFI_PW,
@@ -33,6 +34,7 @@ class AppManager:
         """Constructor.
         """
         self._wifi = None
+        self._ntrip_client = None
         self._ntripevent = Event()
         self._wifi_connected = False
 

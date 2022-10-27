@@ -82,8 +82,7 @@ class RTCMMessage:
         except Exception as err:
             raise rte.RTCMTypeError(
                 (
-                    f"Error processing attribute '{key}' "
-                    f"in message type {self.identity}"
+                    "Error processing attribute '{}' in message type {}".format(key, self.identity)
                 )
             ) from err
 

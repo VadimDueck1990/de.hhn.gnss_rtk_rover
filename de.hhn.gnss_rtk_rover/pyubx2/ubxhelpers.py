@@ -106,28 +106,13 @@ def attsiz(att: str) -> int:
     """
     Helper function to return attribute size in bytes.
 
-    :param str: attribute type e.g. 'U002'
+    :param str att: attribute type e.g. 'U002'
     :return: size of attribute in bytes
     :rtype: int
 
     """
 
     return int(att[1:4])
-
-
-def itow2utc(itow: int) -> datetime.time:
-    """
-    Convert GPS Time Of Week to UTC time
-    (UTC = GPS - 18 seconds; correct as from 1/1/2017).
-
-    :param int itow: GPS Time Of Week
-    :return: UTC time hh.mm.ss
-    :rtype: datetime.time
-
-    """
-
-    utc = datetime(1980, 1, 6) + timedelta(seconds=(itow / 1000) - 18)
-    return utc.time()
 
 
 def gpsfix2str(fix: int) -> str:

@@ -10,7 +10,7 @@ Created on 14 Feb 2022
 """
 # pylint: disable=invalid-name
 
-from datetime import datetime, timedelta
+# from datetime import datetime, timedelta
 from pyrtcm.rtcmtypes_core import RTCM_DATA_FIELDS, RTCM_MSGIDS
 from pyrtcm.exceptions import RTCMTypeError
 from pyrtcm.rtcmtables import (
@@ -263,21 +263,6 @@ def get_bitarray(data: bytes) -> list:
     """
 
     return [get_bit(data, i) for i in range(len(data) * 8)]
-
-
-def tow2utc(tow: int) -> datetime.time:
-    """
-    Convert GPS Time Of Week to UTC time
-    (UTC = GPS - 18 seconds; correct as from 1/1/2017).
-
-    :param int tow: GPS Time Of Week
-    :return: UTC time hh.mm.ss
-    :rtype: datetime.time
-
-    """
-
-    utc = datetime(1980, 1, 6) + timedelta(seconds=(tow / 1000) - 18)
-    return utc.time()
 
 
 def hextable(raw: bytes, cols: int = 8) -> str:

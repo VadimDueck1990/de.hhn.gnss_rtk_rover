@@ -18,7 +18,6 @@ import pyubx2.ubxtypes_poll as ubp
 from pyubx2.ubxhelpers import (
     calc_checksum,
     attsiz,
-    itow2utc,
     gnss2str,
     msgclass2bytes,
     msgstr2bytes,
@@ -116,17 +115,13 @@ class UBXMessage:
         ) as err:
             raise ube.UBXTypeError(
                 (
-                    f"Incorrect type for attribute '{key}' "
-                    f"in {['GET', 'SET', 'POLL'][self._mode]} message "
-                    f"class {self.identity}"
+                    "Incorrect type for attribute '{}' in {} message. class {}". format(key, self._mode, self.identity)
                 )
             ) from err
         except (OverflowError,) as err:
             raise ube.UBXTypeError(
                 (
-                    f"Overflow error for attribute '{key}' "
-                    f"in {['GET', 'SET', 'POLL'][self._mode]} message "
-                    f"class {self.identity}"
+                    "Overflow error for attribute '{}' in {} message. class {}".format(key, self._mode, self.identity)
                 )
             ) from err
 
@@ -858,7 +853,7 @@ class UBXMessage:
                 if att[0:6] == "gnssId":  # attribute is a GNSS ID
                     val = gnss2str(val)  # get string representation e.g. 'GPS'
                 if att == "iTOW":  # attribute is a GPS Time of Week
-                    val = itow2utc(val)  # show time in UTC format
+                    val = str(val)  # show time in UTC format
                 # if it's an ACK, we show what it's acknowledging in plain text
                 # if it's a CFG-MSG, we show what message class/id it refers to in plain text
                 if self._ubxClass == b"\x05" or (

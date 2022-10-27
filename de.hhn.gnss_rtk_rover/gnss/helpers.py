@@ -10,7 +10,6 @@ Created on 26 May 2022
 # pylint: disable=invalid-name
 
 from math import sin, cos, acos, radians
-from pyubx2 import itow2utc
 from utils.globals import EARTH_RADIUS
 
 
@@ -230,7 +229,7 @@ def format_json(message: object) -> str:
         if att[0] != "_":  # only format public attributes
             val = message.__dict__[att]
             if att == "iTOW":  # convert UBX iTOW to UTC
-                val = itow2utc(val)
+                val = str(val)
             if isinstance(val, bool):
                 stg += f'"{att}": {"true" if val else "false"}'
             elif isinstance(val, (int, float)):
