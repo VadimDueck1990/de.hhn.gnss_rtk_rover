@@ -136,11 +136,11 @@ class Logger:
         sys.print_exception(e, _stream)
 
 
-_level = INFO
+_level = DEBUG
 _loggers = {}
 
 
-def getLogger(name):
+def getLogger(name) -> Logger:
     if name not in _loggers:
         _loggers[name] = Logger(name)
     return _loggers[name]

@@ -15,8 +15,10 @@ Created on 4 Sep 2022
 
 import network
 import uasyncio as asyncio
-from uasyncio import Event
+import utils.logging as logging
 
+_logger = logging.getLogger("wifi_manager")
+# _logger.setLevel(logging.WARNING)
 
 class WiFiManager:
     """
@@ -49,20 +51,20 @@ class WiFiManager:
         """
 
         if self._wifi.isconnected():
-            print("Already connected...")
+            _logger.info("Wi-Fi already connected. ifconfig: " + str(self._wifi.ifconfig()))
             return True
         else:
             self._wifi.active(True)
             self._wifi.connect(self._ssid, self._password)
             timeout = 0
             while not self._wifi.isconnected():
-                print("Waiting for connection...")
+                _logger.info("Waiting for connection...")
                 await asyncio.sleep(1)
                 timeout += 1
                 if timeout == 10:
-                    print("Something went wrong, connection failed...")
+                    _logger.info("Something went wrong, Wi-Fi connection failed...")
                     return False
 
-            print("Connected, ifconfig: ", self._wifi.ifconfig())
+            _logger.info("Wi-Fi connected, ifconfig: " + str(self._wifi.ifconfig()))
             return True
 

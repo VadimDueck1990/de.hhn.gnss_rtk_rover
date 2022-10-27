@@ -1,15 +1,13 @@
-from app_manager import AppManager
+from appmanager import AppManager
 import uasyncio
 
 
 async def main():
     app_manager = AppManager()
     await app_manager.connect_wifi()
-    ntrip_sync_task = uasyncio.create_task(app_manager.sync_ntrip_client())
-    await uasyncio.sleep(20)
-    ntrip_sync_task.cancel()
-    await uasyncio.sleep(4)
-    print("all finished")
+    await uasyncio.create_task(app_manager.sync_ntrip_client())
+    while True:
+        await uasyncio.sleep(1)
 
 uasyncio.run(main())
 

@@ -10,12 +10,11 @@ Created on 4 Sep 2022
 
 :author: vdueck
 """
-import utils.logging as logging
 
-from utils.wifimanager import WiFiManager
-import utils.logging
 import uasyncio
 from uasyncio import Event
+import utils.logging as logging
+from utils.wifimanager import WiFiManager
 from utils.globals import (
     WIFI_SSID,
     WIFI_PW,
@@ -23,6 +22,7 @@ from utils.globals import (
 )
 
 _logger = logging.getLogger("app_manager")
+
 
 class AppManager:
     """
@@ -60,18 +60,18 @@ class AppManager:
         Changes of connection status are printed to console
         :raises: uasyncio.CancelledError
         """
-        print("sync_ntrip_client() task initializing...")
+        _logger.info("sync_ntrip_client() task initializing...")
         try:
             while True:
                 current_status = self._wifi.wifi.isconnected()
-                print("Connection status: ", current_status)
+                _logger.info("Connection status: " + str(current_status))
                 if self._wifi_connected != current_status:
-                    print("Wi-Fi connection status changed. Wi-Fi connected: ", current_status)
+                    _logger.info("Wi-Fi connection status changed. Wi-Fi connected: " + str(current_status))
                     if current_status:
-                        print("start ntrip client...")
+                        _logger.info("start ntrip client...")
                         self._ntripevent.set()
                     else:
-                        print("stop ntrip client...")
+                        _logger.info("stop ntrip client...")
                         self._ntripevent.clear()
 
                 self._wifi_connected = current_status
@@ -79,15 +79,15 @@ class AppManager:
 
         except uasyncio.CancelledError as ex:
             self._ntripevent.clear()
-            print("sync_ntrip_client() task cancelled. Exception: ", ex)
+            _logger.exc(ex, "sync_ntrip_client() task cancelled")
             raise
         except Exception as ex:
             self._ntripevent.clear()
-            print("sync_ntrip_client() task something went wrong: ", ex)
+            _logger.exc(ex, "sync_ntrip_client() task cancelled")
             raise
         finally:
             self._ntripevent.clear()
-            print("sync_ntrip_client() task cancelled")
+            _logger.exc(ex, "sync_ntrip_client() task cancelled")
 
 
 

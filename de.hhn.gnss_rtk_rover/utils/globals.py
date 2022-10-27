@@ -14,9 +14,6 @@ WIFI_SSID = "huawei_p30_lite"
 WIFI_PW = "99999999"
 WIFI_CHECK_TIME = 5
 
-# Logging
-LOG_LVL = logging.INFO
-
 # NTRIP
 OUTPORT = 50010
 MIN_NMEA_PAYLOAD = 3  # minimum viable length of NMEA message payload
