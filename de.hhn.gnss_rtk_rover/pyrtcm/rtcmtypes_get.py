@@ -293,13 +293,63 @@ MSM_SIG_7 = {
 # concatenate MSM sections in to a single dict
 # NB: Python >=3.9 supports the more intuitive | (union)
 # operation for this, but earlier versions don't.
-MSM1 = {**MSM_HDR, **MSM_SAT_123, **MSM_SIG_1}
-MSM2 = {**MSM_HDR, **MSM_SAT_123, **MSM_SIG_2}
-MSM3 = {**MSM_HDR, **MSM_SAT_123, **MSM_SIG_3}
-MSM4 = {**MSM_HDR, **MSM_SAT_46, **MSM_SIG_4}
-MSM5 = {**MSM_HDR, **MSM_SAT_57, **MSM_SIG_5}
-MSM6 = {**MSM_HDR, **MSM_SAT_46, **MSM_SIG_6}
-MSM7 = {**MSM_HDR, **MSM_SAT_57, **MSM_SIG_7}
+MSM1 = dict()
+for key, value in MSM_HDR.items():
+    MSM1[key] = value
+for key, value in MSM_SAT_123.items():
+    MSM1[key] = value
+for key, value in MSM_SIG_1.items():
+    MSM1[key] = value
+MSM2 = dict()
+for key, value in MSM_HDR.items():
+    MSM2[key] = value
+for key, value in MSM_SAT_123.items():
+    MSM2[key] = value
+for key, value in MSM_SIG_2.items():
+    MSM2[key] = value
+MSM3 = dict()
+for key, value in MSM_HDR.items():
+    MSM3[key] = value
+for key, value in MSM_SAT_123.items():
+    MSM3[key] = value
+for key, value in MSM_SIG_3.items():
+    MSM3[key] = value
+MSM4 = dict()
+for key, value in MSM_HDR.items():
+    MSM4[key] = value
+for key, value in MSM_SAT_46.items():
+    MSM4[key] = value
+for key, value in MSM_SIG_4.items():
+    MSM4[key] = value
+MSM5 = dict()
+for key, value in MSM_HDR.items():
+    MSM5[key] = value
+for key, value in MSM_SAT_57.items():
+    MSM5[key] = value
+for key, value in MSM_SIG_5.items():
+    MSM5[key] = value
+MSM6 = dict()
+for key, value in MSM_HDR.items():
+    MSM6[key] = value
+for key, value in MSM_SAT_46.items():
+    MSM6[key] = value
+for key, value in MSM_SIG_6.items():
+    MSM6[key] = value
+MSM7 = dict()
+for key, value in MSM_HDR.items():
+    MSM7[key] = value
+for key, value in MSM_SAT_57.items():
+    MSM7[key] = value
+for key, value in MSM_SIG_7.items():
+    MSM7[key] = value
+# MSM1 = {**MSM_HDR, **MSM_SAT_123, **MSM_SIG_1}
+# MSM2 = {**MSM_HDR, **MSM_SAT_123, **MSM_SIG_2}
+# MSM3 = {**MSM_HDR, **MSM_SAT_123, **MSM_SIG_3}
+# MSM4 = {**MSM_HDR, **MSM_SAT_46, **MSM_SIG_4}
+# MSM5 = {**MSM_HDR, **MSM_SAT_57, **MSM_SIG_5}
+# MSM6 = {**MSM_HDR, **MSM_SAT_46, **MSM_SIG_6}
+# MSM7 = {**MSM_HDR, **MSM_SAT_57, **MSM_SIG_7}
+
 # *************************************************************
 
 # *************************************************************

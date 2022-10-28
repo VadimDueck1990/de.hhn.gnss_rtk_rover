@@ -19,6 +19,7 @@ from collections import OrderedDict
 from pynmeagps.nmeatypes_core import ST
 
 NMEA_PAYLOADS_POLL = OrderedDict({
+
     # *********************************************
     # STANDARD MESSAGES
     # *********************************************

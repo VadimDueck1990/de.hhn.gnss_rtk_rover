@@ -29,15 +29,9 @@ has been collated from public domain sources.
 from collections import OrderedDict
 
 from pynmeagps.nmeatypes_core import (
-    CH,
-    DE,
-    DT,
     HX,
     IN,
-    LA,
-    LN,
     ST,
-    TM,
 )
 
 NMEA_PAYLOADS_SET = OrderedDict({
@@ -45,58 +39,6 @@ NMEA_PAYLOADS_SET = OrderedDict({
     # STANDARD MESSAGES
     # *********************************************
     # No standard SET messages that I'm aware of
-    # *********************************************
-    # GARMIN PROPRIETARY MESSAGES
-    # *********************************************
-    "GRMI": OrderedDict({  # sensor initialisation information
-        "lat": LA,
-        "NS": CH,
-        "lon": LN,
-        "EW": CH,
-        "date": DT,
-        "time": TM,
-        "rcvr_cmd": CH,
-    }),
-    "GRMC": OrderedDict({  # sensor configuration information
-        "fix": CH,
-        "alt": DE,
-        "dtm": ST,
-        "smAxis": DE,
-        "iffac": DE,
-        "xecc": DE,
-        "yecc": DE,
-        "zecc": DE,
-        "diff": CH,
-        "baudRate": IN,
-        "vfilt": IN,
-        "reserved1": ST,
-        "reserved2": ST,
-        "drtime": IN,
-    }),
-    "GRMC1": OrderedDict({  # additional sensor configuration information
-        "nmeatim": IN,
-        "bphase": IN,
-        "autopos": IN,
-        "dgpsfr": DE,
-        "dgpsbr": IN,
-        "dgpssc": IN,
-        "nmeaver": IN,
-        "dgpsmod": CH,
-        "pwrsave": CH,
-        "attran": IN,
-        "autopwr": IN,
-        "extpwr": IN,
-    }),
-    "GRMO": OrderedDict({  # output sentence enable
-        "msgId": ST,
-        "tgtmode": IN,
-    }),
-    "GRMW": OrderedDict({  # additional waypoint information
-        "wptId": ST,
-        "alt": DE,
-        "symnum": HX,
-        "comment": ST,
-    }),
     # *********************************************
     # U-BLOX PROPRIETARY MESSAGES
     # *********************************************

@@ -25,6 +25,9 @@ While the NMEA 0183 © protocol is proprietary, the information here
 has been collated from public domain sources.
 
 :author: semuadmin
+
+Edited by vdueck:
+Reduced the message types to match the u-block ZED-F9P receiver
 """
 
 from collections import OrderedDict
@@ -44,63 +47,6 @@ NMEA_PAYLOADS_GET = OrderedDict({
     # *********************************************
     # STANDARD MESSAGES
     # *********************************************
-    "AAM": OrderedDict({
-        "arrce": CH,
-        "perp": CH,
-        "crad": DE,
-        "cUnit": CH,
-        "wpt": ST,
-    }),
-    "APA": OrderedDict({
-        "LCgwarn": CH,
-        "LCcwarn": CH,
-        "ctrkerr": DE,
-        "dirs": CH,
-        "ctrkUnit": CH,
-        "aalmcirc": CH,
-        "aalmperp": CH,
-        "bearP2D": DE,
-        "bearP2Du": CH,
-        "wpt": ST,
-    }),
-    "APB": OrderedDict({
-        "LCgwarn": CH,
-        "LCcwarn": CH,
-        "ctrkerr": DE,
-        "dirs": CH,
-        "ctrkUnit": CH,
-        "aalmcirc": CH,
-        "aalmperp": CH,
-        "bearO2D": DE,
-        "bearO2Du": CH,
-        "wpt": ST,
-        "bearD": DE,
-        "bearDu": CH,
-        "bearS": DE,
-        "bearSu": CH,
-    }),
-    "BOD": OrderedDict({
-        "bearT": DE,
-        "bearTu": CH,
-        "bearM": DE,
-        "bearMu": CH,
-        "wptD": ST,
-        "wptO": ST,
-    }),
-    "BWC": OrderedDict({
-        "fixutc": ST,
-        "lat": LA,
-        "NS": CH,
-        "lon": LN,
-        "EW": CH,
-        "bearT": DE,
-        "bearTu": CH,
-        "bearM": DE,
-        "bearMu": CH,
-        "dist": DE,
-        "distUnit": CH,
-        "wpt": ST,
-    }),
     "DTM": OrderedDict({
         "datum": ST,
         "subDatum": ST,
@@ -199,83 +145,20 @@ NMEA_PAYLOADS_GET = OrderedDict({
         "stdLong": DE,
         "stdAlt": DE,
     }),
-    "GSV": OrderedDict([
-        ("numMsg", IN),
-        ("msgNum", IN),
-        ("numSV", IN),
-        ("group_sv", (
+    "GSV": OrderedDict({
+        "numMsg": IN,
+        "msgNum": IN,
+        "numSV": IN,
+        "group_sv": (
             "None",
-            OrderedDict([  # repeating group * 1..4
-                ("svid", IN),
-                ("elv", DE),  # elevation
-                ("az", IN),  # azimuth
-                ("cno", IN)  # signal strength
-            ])
-        )),
-        ("signalID", HX)  # NMEA >=4.10 only
-    ]),
-    "HDG": OrderedDict({
-        "heading": DE,
-        "MT": CH,  # 'M'
-    }),
-    "HDM": OrderedDict({
-        "heading": DE,
-        "devm": DE,
-        "devEW": CH,
-        "varm": DE,
-        "varEW": CH,
-    }),
-    "HDT": OrderedDict({
-        "heading": DE,
-        "MT": CH,  # 'T'
-    }),
-    "MSK": OrderedDict({
-        "freq": DE,
-        "fmode": CH,
-        "beacbps": IN,
-        "bpsmode": CH,
-        "MMSfreq": DE,
-    }),
-    "MSS": OrderedDict({
-        "strength": IN,
-        "snr": IN,
-        "freq": DE,
-        "beacbps": IN,
-    }),
-    "RLM": OrderedDict({
-        "beacon": HX,
-        "time": TM,
-        "code": CH,
-        "body": HX,
-    }),
-    "RMA": OrderedDict({
-        "status": CH,
-        "lat": LA,
-        "NS": CH,
-        "lon": LN,
-        "EW": CH,
-        "reserved1": ST,
-        "reserved2": ST,
-        "sog": DE,
-        "cog": DE,
-        "var": DE,
-        "dirvar": CH,
-    }),
-    "RMB": OrderedDict({
-        "status": CH,
-        "ctrkerr": DE,
-        "dirs": CH,
-        "wptO": CH,
-        "wptD": CH,
-        "lat": LA,  # of wptD
-        "NS": CH,
-        "lon": LN,  # of wptD
-        "EW": CH,
-        "range": DE,
-        "bearing": DE,
-        "velclos": DE,
-        "arrstatus": CH,
-        "valstatus": CH,
+            OrderedDict({  # repeating group * 1..4
+                "svid": IN,
+                "elv": DE,  # elevation
+                "az": IN,  # azimuth
+                "cno": IN  # signal strength
+            })
+        ),
+        "signalID": HX  # NMEA >=4.10 only
     }),
     "RMC": OrderedDict({
         "time": TM,
@@ -292,51 +175,11 @@ NMEA_PAYLOADS_GET = OrderedDict({
         "posMode": CH,
         "navStatus": CH,  # NMEA >=4.10 only
     }),
-    "RTE": OrderedDict({
-        "numMsg": IN,
-        "msgNum": IN,
-        "status": CH,  # 'c'/'w'
-        "active": ST,
-        "group_wp": (
-            "None",
-            {  # repeating group
-                "wpt": ST,
-            },
-        ),
-    }),
-    "STN": OrderedDict({
-        "talkerId": ST,
-    }),
-    "THS": OrderedDict({
-        "headt": DE,
-        "mi": CH,
-    }),
-    "TRF": OrderedDict({
-        "time": TM,
-        "date": DT,
-        "lat": LA,
-        "NS": CH,
-        "lon": LN,
-        "EW": CH,
-        "elangle": DE,
-        "iter": DE,
-        "Dopint": DE,
-        "dist": DE,
-        "svid": IN,
-    }),
     "TXT": OrderedDict({
         "numMsg": IN,
         "msgNum": IN,
         "msgType": IN,
         "text": ST,
-    }),
-    "VBW": OrderedDict({
-        "wlspd": DE,
-        "wtspd": DE,
-        "wstatus": CH,
-        "glspd": DE,
-        "gtspd": DE,
-        "gstatus": CH,
     }),
     "VLW": OrderedDict({
         "twd": DE,
@@ -359,20 +202,6 @@ NMEA_PAYLOADS_GET = OrderedDict({
         "sogkUnit": CH,
         "posMode": CH,  # NMEA >=2.3 only
     }),
-    "WPL": OrderedDict({
-        "lat": LA,
-        "NS": CH,
-        "lon": LN,
-        "EW": CH,
-        "wpt": ST,
-    }),
-    "XTE": OrderedDict({
-        "gwarn": CH,
-        "LCcwarn": CH,
-        "ctrkerr": DE,
-        "dirs": CH,
-        "disUnit": CH,
-    }),
     "ZDA": OrderedDict({
         "time": TM,
         "day": IN,
@@ -380,78 +209,6 @@ NMEA_PAYLOADS_GET = OrderedDict({
         "year": IN,
         "ltzh": ST,
         "ltzn": ST,
-    }),
-    # *********************************************
-    # GARMIN PROPRIETARY MESSAGES
-    # *********************************************
-    "GRME": OrderedDict({  # estimated error information
-        "HPE": DE,
-        "HPEUnit": CH,
-        "VPE": DE,
-        "VPEUnit": CH,
-        "EPE": DE,
-        "EPEUnit": CH,
-    }),
-    "GRMF": OrderedDict({  # GPS fix data sentence
-        "week": IN,
-        "secs": IN,
-        "date": DT,
-        "time": TM,
-        "leapsec": IN,
-        "lat": LA,
-        "NS": CH,
-        "lon": LN,
-        "EW": CH,
-        "mode": CH,
-        "fix": IN,
-        "spd": DE,
-        "course": IN,
-        "PDOP": DE,
-        "TDOP": DE,
-    }),
-    "GRMH": OrderedDict({  # aviation height and VNAV data
-        "status": CH,
-        "vspd": DE,
-        "verr": DE,
-        "spdtgt": DE,
-        "spdwpt": DE,
-        "height": DE,
-        "trk": DE,
-        "course": DE,
-    }),
-    "GRMM": OrderedDict({  # map datum
-        "dtm": ST,
-    }),
-    "GRMT": OrderedDict({  # sensor status information
-        "ver": ST,
-        "ROMtest": CH,
-        "rcvrtest": CH,
-        "stortest": CH,
-        "rtctest": CH,
-        "osctest": CH,
-        "datatest": CH,
-        "temp": DE,
-        "cfgdata": CH,
-    }),
-    "GRMV": OrderedDict({  # 3D velocity information
-        "velE": DE,
-        "velN": DE,
-        "velZ": DE,
-    }),
-    "GRMZ": OrderedDict({  # altitude
-        "alt": DE,
-        "altUnit": CH,
-        "fix": IN,
-    }),
-    "GRMB": OrderedDict({  # DGPS Beacon information
-        "freq": DE,
-        "bps": IN,
-        "snr": IN,
-        "quality": IN,
-        "dist": DE,
-        "status": IN,
-        "fixsrc": CH,
-        "mode": CH,
     }),
     # *********************************************
     # U-BLOX PROPRIETARY MESSAGES
@@ -504,27 +261,8 @@ NMEA_PAYLOADS_GET = OrderedDict({
         "clkDrift": DE,
         "tpGran": IN,
     }),
-    "UBX05": OrderedDict({  # deprecated, for backwards compat only
-        "msgId": ST,  # '05'
-        "pulses": IN,
-        "period": IN,
-        "gyroMean": IN,
-        "temperature": DE,
-        "direction": CH,
-        "pulseScaleCS": IN,
-        "gyroScaleCS": IN,
-        "gyroBiasCS": IN,
-        "pulseScale": DE,
-        "gyroBias": DE,
-        "gyroScale": DE,
-        "pulseScaleAcc": IN,
-        "gyroBiasAcc": IN,
-        "gyroScaleAcc": IN,
-        "measUsed": HX,
-    }),
     # *********************************************
     # Dummy message for error testing
     # *********************************************
     "FOO": OrderedDict({"spam": "Z2", "eggs": "Y1"}),
 })
-
