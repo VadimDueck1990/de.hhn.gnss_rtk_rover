@@ -41,105 +41,6 @@ from pyubx2.ubxtypes_core import (
 from pyubx2.ubxtypes_get import UBX_PAYLOADS_GET as UBX_GET
 
 UBX_PAYLOADS_SET = {
-    # AssistNow Aiding Messages: i.e. Ephemeris, Almanac, other A-GPS data input.
-    # Messages in the AID class are used to send GPS aiding data to the receiver
-    # AID messages are deprecated in favour of MGA messages in >=Gen8
-    "AID-ALM": {"svid": U4, "week": U4, "optBlock": ("None", {"dwrd": U4})},
-    "AID-ALP": {
-        "group": (
-            "None",
-            {
-                "alpData": U2,
-            },
-        ),
-    },
-    "ALP-ALPSRV": {
-        "idSize": U1,
-        "type": U1,
-        "ofs": U2,
-        "size": U2,
-        "fileId": U2,
-        "dataSize": U2,
-        "id1": U1,
-        "id2": U1,
-        "id3": U1,
-        "group": (
-            "dataSize",
-            {
-                "data": U1,
-            },
-        ),
-    },
-    "AID-AOP": {"gnssId": U1, "svId": U1, "reserved1": U2, "data": U64},
-    "AID-EPH": {
-        "svid": U4,
-        "how": U4,
-        "optBlock": (
-            "None",
-            {
-                "sf1d1": U4,
-                "sf1d2": U4,
-                "sf1d3": U4,
-                "sf1d4": U4,
-                "sf1d5": U4,
-                "sf1d6": U4,
-                "sf1d7": U4,
-                "sf1d8": U4,
-                "sf2d1": U4,
-                "sf2d2": U4,
-                "sf2d3": U4,
-                "sf2d4": U4,
-                "sf2d5": U4,
-                "sf2d6": U4,
-                "sf2d7": U4,
-                "sf2d8": U4,
-                "sf3d1": U4,
-                "sf3d2": U4,
-                "sf3d3": U4,
-                "sf3d4": U4,
-                "sf3d5": U4,
-                "sf3d6": U4,
-                "sf3d7": U4,
-                "sf3d8": U4,
-            },
-        ),
-    },
-    "AID-HUI": {
-        "health": X4,
-        "utcA0": R8,
-        "utcA1": R8,
-        "utcTOW": I4,
-        "utcWNT": I2,
-        "utcLS": I2,
-        "utcWNF": I2,
-        "utcDNs": I2,
-        "utcLSF": I2,
-        "utcSpare": I2,
-        "klobA0": R4,
-        "klobA1": R4,
-        "klobA2": R4,
-        "klobA3": R4,
-        "klobB0": R4,
-        "klobB1": R4,
-        "klobB2": R4,
-        "klobB3": R4,
-        "flags": X4,
-    },
-    "AID-INI": {
-        "ecefXOrLat": I4,
-        "ecefYOrLon": I4,
-        "ecefZOrAlt": I4,
-        "posAcc": U4,
-        "tmCfg": X2,
-        "wn": U2,
-        "tow": U4,
-        "towNs": I4,
-        "tAccMs": U4,
-        "tAccNs": U4,
-        "clkDOrFreq": I4,
-        "clkDAccOrFreqAcc": U4,
-        "flags": X4,
-    },
     # ********************************************************************
     # Configuration Input Messages: i.e. Set Dynamic Model, Set DOP Mask, Set Baud Rate, etc..
     # Messages in the CFG class are used to configure the receiver and read out current configuration values. Any
@@ -149,7 +50,6 @@ UBX_PAYLOADS_SET = {
     # Most CFG-* GET & SET message payloads are identical, so reference
     # GET definitions here to avoid duplication
     "CFG-ANT": UBX_GET["CFG-ANT"],
-    "CFG-BATCH": UBX_GET["CFG-BATCH"],
     "CFG-CFG": UBX_GET["CFG-CFG"],
     "CFG-DAT-NUM": {
         "datumNum": U2,
@@ -166,20 +66,8 @@ UBX_PAYLOADS_SET = {
         "scale": R4,
     },
     "CFG-DGNSS": UBX_GET["CFG-DGNSS"],
-    "CFG-DOSC": UBX_GET["CFG-DOSC"],
-    "CFG-DYNSEED": UBX_GET["CFG-DYNSEED"],
-    "CFG-EKF": UBX_GET["CFG-EKF"],
-    "CFG-ESFALG": UBX_GET["CFG-ESFALG"],
-    "CFG-ESFA": UBX_GET["CFG-ESFA"],
-    "CFG-ESFG": UBX_GET["CFG-ESFG"],
-    "CFG-ESFWT": UBX_GET["CFG-ESFWT"],
-    "CFG-ESFGWT": UBX_GET["CFG-ESFGWT"],
-    "CFG-ESRC": UBX_GET["CFG-ESRC"],
-    "CFG-FIXSEED": UBX_GET["CFG-FIXSEED"],
-    "CFG-FXN": UBX_GET["CFG-FXN"],
     "CFG-GEOFENCE": UBX_GET["CFG-GEOFENCE"],
     "CFG-GNSS": UBX_GET["CFG-GNSS"],
-    "CFG-HNR": UBX_GET["CFG-HNR"],
     "CFG-INF": UBX_GET["CFG-INF"],
     "CFG-ITFM": UBX_GET["CFG-ITFM"],
     "CFG-LOGFILTER": UBX_GET["CFG-LOGFILTER"],
@@ -187,53 +75,7 @@ UBX_PAYLOADS_SET = {
     "CFG-NAV5": UBX_GET["CFG-NAV5"],
     "CFG-NAVX5": UBX_GET["CFG-NAVX5"],
     "CFG-NMEA": UBX_GET["CFG-NMEA"],
-    "CFG-NMEAv0": UBX_GET["CFG-NMEAv0"],
-    "CFG-NMEAvX": UBX_GET["CFG-NMEAvX"],
-    "CFG-NVS": {
-        "clearMask": (
-            X4,
-            {
-                "reserved0": U12,
-                "reserved1": U5,
-                "alm": U1,
-                "reserved2": U11,
-                "aop": U1,
-            },
-        ),
-        "saveMask": (
-            X4,
-            {
-                "reserved3": U12,
-                "reserved4": U5,
-                "alm": U1,
-                "reserved5": U11,
-                "aop": U1,
-            },
-        ),
-        "loadMask": (
-            X4,
-            {
-                "reserved6": U12,
-                "reserved7": U5,
-                "alm": U1,
-                "reserved8": U11,
-                "aop": U1,
-            },
-        ),
-        "deviceMask": (
-            X1,
-            {
-                "devBBR": U1,
-                "devFlash": U1,
-                "devEEPROM": U1,
-                "reserved9": U1,
-                "devSpiFlash": U1,
-            },
-        ),
-    },
     "CFG-ODO": UBX_GET["CFG-ODO"],
-    "CFG-PM2": UBX_GET["CFG-PM2"],
-    "CFG-PMS": UBX_GET["CFG-PMS"],
     "CFG-PRT": UBX_GET["CFG-PRT"],
     "CFG-PWR": UBX_GET["CFG-PWR"],
     "CFG-RATE": UBX_GET["CFG-RATE"],
@@ -258,16 +100,8 @@ UBX_PAYLOADS_SET = {
         "resetMode": U1,
         "reserved0": U1,
     },
-    "CFG-RXM": UBX_GET["CFG-RXM"],
-    "CFG-SBAS": UBX_GET["CFG-SBAS"],
-    "CFG-SENIF": UBX_GET["CFG-SENIF"],
-    "CFG-SLAS": UBX_GET["CFG-SLAS"],
-    "CFG-SMGR": UBX_GET["CFG-SMGR"],
-    "CFG-SPT": UBX_GET["CFG-SPT"],
-    "CFG-TMODE2": UBX_GET["CFG-TMODE2"],
     "CFG-TMODE3": UBX_GET["CFG-TMODE3"],
     "CFG-TP5": UBX_GET["CFG-TP5"],
-    "CFG-TXSLOT": UBX_GET["CFG-TXSLOT"],
     "CFG-USB": UBX_GET["CFG-USB"],
     "CFG-VALDEL": {
         "version": U1,  # = 0 no transaction, 1 with transaction
@@ -311,32 +145,7 @@ UBX_PAYLOADS_SET = {
     # External Sensor Fusion Messages: i.e. External Sensor Measurements and Status Information.
     # Messages in the ESF class are used to output external sensor fusion information from the receiver.
     # if calibTtagValid = 1; last dataField = calibTtag, numMeas = num of dataFields excluding calibTtag
-    "ESF-MEAS": {
-        "timeTag": U4,
-        "flags": (
-            X2,
-            {
-                "timeMarkSent": U2,
-                "timeMarkEdge": U1,
-                "calibTtagValid": U1,
-                "reserved0": U7,
-                "numMeas": U5,
-            },
-        ),
-        "id": U2,
-        "group": (
-            "numMeas",
-            {  # repeating group * numMeas
-                "data": (
-                    X4,
-                    {
-                        "dataField": X24,
-                        "dataType": U6,
-                    },
-                ),
-            },
-        ),
-    },
+
     # ********************************************************************
     # Logging Messages: i.e. Log creation, deletion, info and retrieval.
     # Messages in the LOG class are used to configure and report status information of the logging feature.
@@ -370,32 +179,10 @@ UBX_PAYLOADS_SET = {
         "version": U1,
         "reserved0": U3,
     },
-    "LOG-RETRIEVEBATCH": {
-        "version": U1,
-        "flags": (
-            X1,
-            {
-                "sendMonFirst": U1,
-            },
-        ),
-        "reserved0": U2,
-    },
     "LOG-STRING": {"group": ("None", {"bytes": U1})},  # repeating group
     # ********************************************************************
     # Multiple GNSS Assistance Messages: i.e. Assistance data for various GNSS.
     # Messages in the MGA class are used for GNSS aiding information from and to the receiver.
-    "MGA-ANO": {
-        "type": U1,
-        "version": U1,
-        "svId": U1,
-        "gnssId": U1,
-        "year": U1,
-        "month": U1,
-        "day": U1,
-        "reserved0": U1,
-        "data": U64,
-        "reserved1": U4,
-    },
     "MGA-BDS-ALM": {
         "type": U1,
         "version": U1,
@@ -487,14 +274,6 @@ UBX_PAYLOADS_SET = {
         "dtLSF": I1,
         "reserved2": U2,
     },
-    "MGA-FLASH-DATA": {
-        "type": U1,
-        "version": U1,
-        "sequence": U2,
-        "size": U2,
-        "group": ("size", {"data": U1}),  # repeating group * size
-    },
-    "MGA-FLASH-STOP": {"type": U1, "version": U1},
     "MGA-GAL-ALM": {
         "type": U1,
         "version": U1,
@@ -890,16 +669,6 @@ UBX_PAYLOADS_SET = {
     # Receiver Manager Messages: i.e. Satellite Status, RTC Status.
     # Messages in the RXM class are used to output status and result data from the Receiver Manager. The output
     # rate is not bound to the navigation/measurement rate and messages can also be generated on events.
-    "RXM-PMREQ-S": {
-        "duration": U4,
-        "flags": (
-            X4,
-            {
-                "reserved1": U1,
-                "backup": U1,
-            },
-        ),
-    },  # this appears to be a deprecated version
     "RXM-PMREQ": {
         "version": U1,  # 0x00
         "reserved0": U3,
@@ -928,27 +697,7 @@ UBX_PAYLOADS_SET = {
     # Timing Messages: i.e. Time Pulse Output, Time Mark Results.
     # Messages in the TIM class are used to output timing information from the receiver, like Time Pulse and Time
     # Mark measurements.
-    "TIM-HOC": {
-        "version": U1,  # 0x00
-        "oscId": U1,
-        "flags": U1,
-        "reserved1": U1,
-        "value": [I4, 2**-8],
-    },
-    "TIM-SMEAS": UBX_GET["TIM-SMEAS"],
-    "TIM-VCOCAL-V0": {  # stop calibration
-        "type": U1,  # 0x00
-    },
-    "TIM-VCOCAL": {
-        "type": U1,  # 0x02
-        "version": U1,  # 0x00
-        "oscId": U1,
-        "srcId": U1,
-        "reserved1": U2,
-        "raw0": U2,
-        "raw1": U2,
-        "maxStepSize": U2,
-    },
+
     # ********************************************************************
     # Firmware Update Messages: i.e. Memory/Flash erase/write, Reboot, Flash identification, etc..
     # Messages in the UPD class are used to update the firmware and identify any attached flash device.
