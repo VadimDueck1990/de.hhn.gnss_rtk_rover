@@ -117,7 +117,7 @@ class UartReader:
 
         """
 
-        msgmode = ubt.GET
+        msgmode = 0
         validate = ubt.VALCKSUM
         parsebf = True
         scaling = True
@@ -126,6 +126,8 @@ class UartReader:
         hdr = message[0:2]
         clsid = message[2:3]
         msgid = message[3:4]
+        # if msgid == b"\x03":  # NAV-STATUS
+        #     msgmode = 1
         lenb = message[4:6]
         if lenb == b"\x00\x00":
             payload = None
@@ -165,7 +167,8 @@ class UartReader:
                 scaling=scaling,
             )
         except KeyError as err:
+            modestr = ["GET", "SET", "POLL"][msgmode]
             raise ube.UBXParseError(
-                """Unknown message type clsid, msgid, mode.\n
-                Check 'msgmode' keyword argument is appropriate for message category"""
+                """Unknown message type clsid {}, msgid {}, mode {}.\n
+                Check 'msgmode' keyword argument is appropriate for message category""".format(clsid, msgid, modestr)
             ) from err

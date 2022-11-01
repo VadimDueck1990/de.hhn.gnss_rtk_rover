@@ -124,6 +124,7 @@ UBX_MSGIDS = {
     # *********************************************************************
     b"\x06\x17": "CFG-NMEA",  # NB: 3 versions of this
     b"\x06\x08": "CFG-RATE",
+    b"\x06\x01": "CFG-MSG",
     b"\x06\x8c": "CFG-VALDEL",
     b"\x06\x8b": "CFG-VALGET",
     b"\x06\x8a": "CFG-VALSET",

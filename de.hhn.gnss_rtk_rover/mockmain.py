@@ -4,8 +4,9 @@ from machine import UART, Pin
 from gnss.uart_writer import UartWriter
 from primitives.queue import Queue
 from gnss.uart_reader import UartReader
+from pyubx2.ubxtypes_configdb import POLL_LAYER_RAM
 from pyubx2.ubxmessage import UBXMessage
-from pyubx2.ubxtypes_core import POLL, SET, GET
+from pyubx2.ubxtypes_core import POLL, SET, GET, UBX_MSGIDS
 
 
 async def main():
@@ -38,12 +39,25 @@ async def main():
     writertask = uasyncio.create_task(uart_writer.run())
     readertask = uasyncio.create_task(uart_reader.run())
 
-    msg = UBXMessage("CFG",
-                     "CFG-RATE",
-                     SET,
-                     measRate=1000,
-                     navRate=1,
-                     timeRef=1)
+    # msg = UBXMessage("CFG",
+    #                  "CFG-RATE",
+    #                  SET,
+    #                  measRate=1000,
+    #                  navRate=1,
+    #                  timeRef=1)
+
+    # msg = None
+    # for (msgid, msgname) in UBX_MSGIDS.items():
+    #     if msgid[0] == 0x01:  # NAV
+    #         msg = UBXMessage(
+    #             "CFG",
+    #             "CFG-MSG",
+    #             SET,
+    #             msgClass=msgid[0],
+    #             msgID=msgid[1],
+    #             rateUART1=1,
+    #             rateUSB=1,
+    #         )
 
     # msg = UBXMessage(
     #     "NAV",
@@ -51,9 +65,15 @@ async def main():
     #     GET
     # )
 
-    print(str(msg))
+    msg = UBXMessage(
+        "NAV",
+        "NAV-SAT",
+        GET
+    )
+
     while True:
-        await msg_q.put(msg)
+        if msg is not None:
+            await msg_q.put(msg)
         await uasyncio.sleep(4)
         print("hello")
 

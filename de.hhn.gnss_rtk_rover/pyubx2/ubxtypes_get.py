@@ -304,6 +304,40 @@ UBX_PAYLOADS_GET = OrderedDict({
             }),
         ),
     }),
+"NAV-STATUS": OrderedDict({
+        "iTOW": U4,
+        "gpsFix": U1,
+        "flags": (
+            X1,
+            OrderedDict({
+                "gpsFixOk": U1,
+                "diffSoln": U1,
+                "wknSet": U1,
+                "towSet": U1,
+            }),
+        ),
+        "fixStat": (
+            X1,
+            OrderedDict({
+                "diffCorr": U1,
+                "carrSolnValid": U1,
+                "reserved0": U4,
+                "mapMatching": U2,
+            }),
+        ),
+        "flags2": (
+            X1,
+            OrderedDict({
+                "psmState": U2,
+                "reserved1": U1,
+                "spoofDetState": U2,
+                "reserved2": U1,
+                "carrSoln": U2,
+            }),
+        ),
+        "ttff": U4,
+        "msss": U4,
+    }),
     # ********************************************************************
     # Receiver Manager Messages: i.e. Satellite Status, RTC Status.
     # Messages in the RXM class are used to output status and result data from the Receiver Manager. The output

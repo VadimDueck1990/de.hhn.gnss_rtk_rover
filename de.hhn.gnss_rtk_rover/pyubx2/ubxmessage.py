@@ -461,7 +461,7 @@ class UBXMessage:
         while offset < cfglen:
             if i == KEYLEN:
                 key = int.from_bytes(
-                    self._payload[offset : offset + KEYLEN], "little", signed=False
+                    self._payload[offset : offset + KEYLEN], "little", False
                 )
                 (keyname, att) = cfgkey2name(key)
                 atts = attsiz(att)
