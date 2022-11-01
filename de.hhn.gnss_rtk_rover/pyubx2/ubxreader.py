@@ -18,7 +18,6 @@ Created on 2 Oct 2020
 """
 
 from socket import socket
-from pyrtcm.rtcmreader import RTCMReader
 import pyrtcm.exceptions as rte
 from pynmeagps import NMEAReader
 import pynmeagps.exceptions as nme
@@ -87,7 +86,7 @@ class UBXReader:
 
         (raw_data, parsed_data) = self.read()
         if raw_data is not None:
-            return (raw_data, parsed_data)
+            return raw_data, parsed_data
         raise StopIteration
 
     def read(self) -> tuple:
@@ -146,15 +145,15 @@ class UBXReader:
                 # unrecognised protocol header
                 else:
                     if self._quitonerror == ubt.ERR_RAISE:
-                        raise ube.UBXStreamError(f"Unknown protocol {bytehdr}.")
+                        raise ube.UBXStreamError("Unknown protocol {}.".format(bytehdr))
                     if self._quitonerror == ubt.ERR_LOG:
-                        return (bytehdr, f"<UNKNOWN PROTOCOL(header={bytehdr})>")
+                        return bytehdr, "<UNKNOWN PROTOCOL(header={})>".format(bytehdr)
                     continue
 
         except EOFError:
             return (None, None)
 
-        return (raw_data, parsed_data)
+        return raw_data, parsed_data
 
     def _parse_ubx(self, hdr: bytes) -> tuple:
         """
@@ -212,7 +211,7 @@ class UBXReader:
             )
         else:
             parsed_data = None
-        return (raw_data, parsed_data)
+        return raw_data, parsed_data
 
     def _parse_rtcm3(self, hdr: bytes, **kwargs) -> tuple:
         """
@@ -230,17 +229,17 @@ class UBXReader:
         crc = self._read_bytes(3)
         raw_data = hdr + hdr3 + payload + crc
         # only parse if we need to (filter passes RTCM)
-        if self._protfilter & ubt.RTCM3_PROTOCOL:
-            # invoke pyrtcm parser
-            parsed_data = RTCMReader.parse(
-                raw_data,
-                validate=self._validate,
-                scaling=self._scaling,
-                labelmsm=self._labelmsm,
-            )
-        else:
-            parsed_data = None
-        return (raw_data, parsed_data)
+        # if self._protfilter & ubt.RTCM3_PROTOCOL:
+        #     # invoke pyrtcm parser
+        #     parsed_data = RTCMReader.parse(
+        #         raw_data,
+        #         validate=self._validate,
+        #         scaling=self._scaling,
+        #         labelmsm=self._labelmsm,
+        #     )
+        # else:
+        parsed_data = None
+        return raw_data, parsed_data
 
     def _read_bytes(self, size: int) -> bytes:
         """

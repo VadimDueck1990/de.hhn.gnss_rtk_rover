@@ -15,6 +15,7 @@ Information sourced from u-blox Interface Specifications © 2013-2021, u-blox AG
 """
 
 from pyubx2.ubxtypes_core import U1, U2, U4
+from collections import OrderedDict
 
 UBX_PAYLOADS_POLL = {
     # *************************************************
@@ -38,68 +39,20 @@ UBX_PAYLOADS_POLL = {
     "CFG-TMODE3": {},
     "CFG-TP5": {},  # used if no payload keyword specified
     "CFG-USB": {},
-    "CFG-VALGET": {
+    "CFG-VALGET": OrderedDict({
         "version": U1,
         "layer": U1,
         "position": U2,
         "group": ("None", {"keys": U4}),  # repeating group
-    },
+    }),
     # *************************************************
-    "LOG-INFO": {},
-    # *************************************************
-    "MGA-DBD": {},
-    # *************************************************
-    "MON-COMMS": {},
-    "MON-GNSS": {},
-    "MON-HW": {},
-    "MON-HW2": {},
-    "MON-HW3": {},
-    "MON-IO": {},
-    "MON-MSGPP": {},
-    "MON-PATCH": {},
-    "MON-RF": {},
-    "MON-RXBUF": {},
-    "MON-TXBUF": {},
-    "MON-VER": {},
-    # *************************************************
-    "NAV-CLOCK": {},
-    "NAV-DOP": {},
-    "NAV-EOE": {},
-    "NAV-GEOFENCE": {},
-    "NAV-HPPOSECEF": {},
-    "NAV-HPPOSLLH": {},
-    "NAV-ODO": {},
-    "NAV-ORB": {},
-    "NAV-PL": {},
-    "NAV-POSECEF": {},
-    "NAV-POSLLH": {},
     "NAV-PVT": {},
-    "NAV-RELPOSNED": {},
-    "NAV-RESETODO": {},
     "NAV-SAT": {},
     "NAV-SIG": {},
     "NAV-STATUS": {},
     "NAV-SVIN": {},
-    "NAV-TIMEBDS": {},
-    "NAV-TIMEGAL": {},
-    "NAV-TIMEGLO": {},
-    "NAV-TIMEGPS": {},
-    "NAV-TIMELS": {},
-    "NAV-TIMEUTC": {},
-    "NAV-VELECEF": {},
-    "NAV-VELNED": {},
     # *************************************************
-    "RXM-MEASX": {},
-    "RXM-RAWX": {},
-    "RXM-RLM": {},
     "RXM-RTCM": {},
-    "RXM-SFRBX": {},
-    # *************************************************
-    "SEC-UNIQID": {},
-    # *************************************************
-    "TIM-TM2": {},
-    "TIM-TP": {},
-    "TIM-VRFY": {},
     # *************************************************
     "UPD-SOS": {},
 }

@@ -122,148 +122,23 @@ UBX_MSGIDS = {
     # Configuration messages
     # Since Gen 9, many of these are deprecated in favour of CFG-VALSET/DEL
     # *********************************************************************
-    b"\x06\x13": "CFG-ANT",
-    b"\x06\x09": "CFG-CFG",
-    b"\x06\x06": "CFG-DAT",  # two versions
-    b"\x06\x70": "CFG-DGNSS",
-    b"\x06\x69": "CFG-GEOFENCE",
-    b"\x06\x3e": "CFG-GNSS",
-    b"\x06\x02": "CFG-INF",
-    b"\x06\x39": "CFG-ITFM",
-    b"\x06\x47": "CFG-LOGFILTER",
-    b"\x06\x01": "CFG-MSG",
-    b"\x06\x24": "CFG-NAV5",
-    b"\x06\x23": "CFG-NAVX5",
     b"\x06\x17": "CFG-NMEA",  # NB: 3 versions of this
-    b"\x06\x1e": "CFG-ODO",
-    b"\x06\x00": "CFG-PRT",
-    b"\x06\x57": "CFG-PWR",
     b"\x06\x08": "CFG-RATE",
-    b"\x06\x34": "CFG-RINV",
-    b"\x06\x04": "CFG-RST",
-    b"\x06\x71": "CFG-TMODE3",
-    b"\x06\x31": "CFG-TP5",
-    b"\x06\x1b": "CFG-USB",
     b"\x06\x8c": "CFG-VALDEL",
     b"\x06\x8b": "CFG-VALGET",
     b"\x06\x8a": "CFG-VALSET",
     # ***************************************************************
-    # Information messages
-    # ***************************************************************
-    b"\x04\x04": "INF-DEBUG",
-    b"\x04\x00": "INF-ERROR",
-    b"\x04\x02": "INF-NOTICE",
-    b"\x04\x03": "INF-TEST",
-    b"\x04\x01": "INF-WARNING",
-    # ***************************************************************
-    # Logging messages
-    # ***************************************************************
-    b"\x21\x07": "LOG-CREATE",
-    b"\x21\x03": "LOG-ERASE",
-    b"\x21\x0e": "LOG-FINDTIME",
-    b"\x21\x08": "LOG-INFO",
-    b"\x21\x0b": "LOG-RETRIEVEPOS",
-    b"\x21\x0f": "LOG-RETRIEVEPOSEXTRA",
-    b"\x21\x0d": "LOG-RETRIEVESTRING",
-    b"\x21\x04": "LOG-STRING",
-    # ***************************************************************
-    # Multiple GNSS Assistance messages
-    # These need special handling as MSGIDs alone are not unique;
-    # message identity is determined by 'type' attribute in payload
-    # ***************************************************************
-    b"\x13\x60\x01": "MGA-ACK-DATA0",
-    b"\x13\x60\x00": "MGA-NAK-DATA0",
-    b"\x13\x03\x01": "MGA-BDS-EPH",
-    b"\x13\x03\x02": "MGA-BDS-ALM",
-    b"\x13\x03\x04": "MGA-BDS-HEALTH",
-    b"\x13\x03\x05": "MGA-BDS-UTC",
-    b"\x13\x03\x06": "MGA-BDS-IONO",
-    b"\x13\x80" : "MGA-DBD",
-    b"\x13\x02\x01": "MGA-GAL-EPH",
-    b"\x13\x02\x02": "MGA-GAL-ALM",
-    b"\x13\x02\x03": "MGA-GAL-TIMEOFFSET",
-    b"\x13\x02\x05": "MGA-GAL-UTC",
-    b"\x13\x06\x01": "MGA-GLO-EPH",
-    b"\x13\x06\x02": "MGA-GLO-ALM",
-    b"\x13\x06\x03": "MGA-GLO-TIMEOFFSET",
-    b"\x13\x00\x01": "MGA-GPS-EPH",
-    b"\x13\x00\x02": "MGA-GPS-ALM",
-    b"\x13\x00\x04": "MGA-GPS-HEALTH",
-    b"\x13\x00\x05": "MGA-GPS-UTC",
-    b"\x13\x00\x06": "MGA-GPS-IONO",
-    b"\x13\x40\x00": "MGA-INI-POS-XYZ",
-    b"\x13\x40\x01": "MGA-INI-POS-LLH",
-    b"\x13\x40\x10": "MGA-INI-TIME-UTC",
-    b"\x13\x40\x11": "MGA-INI-TIME-GNSS",
-    b"\x13\x40\x20": "MGA-INI-CLKD",
-    b"\x13\x40\x21": "MGA-INI-FREQ",
-    b"\x13\x40\x30": "MGA-INI-EOP",
-    b"\x13\x05\x01": "MGA-QZSS-EPH",
-    b"\x13\x05\x02": "MGA-QZSS-ALM",
-    b"\x13\x05\x04": "MGA-QZSS-HEALTH",
-    # ***************************************************************
-    # Hardware Monitoring messages
-    # ***************************************************************
-    b"\x0a\x36": "MON-COMMS",
-    b"\x0a\x28": "MON-GNSS",
-    b"\x0a\x09": "MON-HW",
-    b"\x0a\x0b": "MON-HW2",
-    b"\x0a\x37": "MON-HW3",
-    b"\x0a\x02": "MON-IO",  # deprecated, use MON-COMMS
-    b"\x0a\x06": "MON-MSGPP",  # deprecated, use MON-COMMS
-    b"\x0a\x27": "MON-PATCH",
-    b"\x0a\x38": "MON-RF",
-    b"\x0a\x07": "MON-RXBUF",  # deprecated, use MON-COMMS
-    b"\x0a\x21": "MON-RXR",
-    b"\x0a\x08": "MON-TXBUF",
-    b"\x0a\x04": "MON-VER",
-    # ***************************************************************
     # Navigation messages
     # ***************************************************************
-    b"\x01\x22": "NAV-CLOCK",
-    b"\x01\x04": "NAV-DOP",
-    b"\x01\x61": "NAV-EOE",
-    b"\x01\x39": "NAV-GEOFENCE",
-    b"\x01\x13": "NAV-HPPOSECEF",
-    b"\x01\x14": "NAV-HPPOSLLH",
-    b"\x01\x09": "NAV-ODO",
-    b"\x01\x34": "NAV-ORB",
-    b"\x01\x01": "NAV-POSECEF",
-    b"\x01\x02": "NAV-POSLLH",
     b"\x01\x07": "NAV-PVT",
-    b"\x01\x3c": "NAV-RELPOSNED",  # two versions
-    b"\x01\x10": "NAV-RESETODO",
     b"\x01\x35": "NAV-SAT",
     b"\x01\x43": "NAV-SIG",
     b"\x01\x03": "NAV-STATUS",
     b"\x01\x3b": "NAV-SVIN",
-    b"\x01\x24": "NAV-TIMEBDS",
-    b"\x01\x25": "NAV-TIMEGAL",
-    b"\x01\x23": "NAV-TIMEGLO",
-    b"\x01\x20": "NAV-TIMEGPS",
-    b"\x01\x26": "NAV-TIMELS",
-    b"\x01\x21": "NAV-TIMEUTC",
-    b"\x01\x11": "NAV-VELECEF",
-    b"\x01\x12": "NAV-VELNED",
     # ***************************************************************
     # Receiver Management messages
     # ***************************************************************
-    b"\x02\x14": "RXM-MEASX",
-    b"\x02\x41": "RXM-PMREQ",  # 2 versions
-    b"\x02\x15": "RXM-RAWX",
-    b"\x02\x59": "RXM-RLM",  # 2 versions
     b"\x02\x32": "RXM-RTCM",
-    b"\x02\x13": "RXM-SFRBX",
-    # ***************************************************************
-    # Security messages
-    # ***************************************************************
-    b"\x27\x03": "SEC-UNIQID",
-    # ***************************************************************
-    # Timing messages
-    # ***************************************************************
-    b"\x0d\x03": "TIM-TM2",
-    b"\x0d\x01": "TIM-TP",
-    b"\x0d\x06": "TIM-VRFY",
     # ***************************************************************
     # Firmware update messages
     # ***************************************************************
@@ -306,37 +181,6 @@ UBX_MSGIDS = {
     b"\xf1\x06": "UBX-06",  # Lat/Long Position Data
     b"\xf1\x40": "UBX-40",  # Set NMEA message output rate
     b"\xf1\x41": "UBX-41",  # aka PUBX-CONFIG Set Protocols and Baudrate
-    # ***************************************************************
-    # RTCM3 Message types
-    # Used to poll message rates via CFG-MSG; not parsed by pyubx2
-    # ***************************************************************
-    b"\xf5\x01": "RTCM3-1001",  # L1-only GPS RTK observables (Input)
-    b"\xf5\x02": "RTCM3-1002",  # Extended L1-only GPS RTK observables (Input)
-    b"\xf5\x03": "RTCM3-1003",  # L1/L2 GPS RTK observables (Input)
-    b"\xf5\x04": "RTCM3-1004",  # Extended L1/L2 GPS RTK observables (Input)
-    b"\xf5\x05": "RTCM3-1005",  # Stationary RTK reference station ARP (Input/output)
-    b"\xf5\x06": "RTCM3-1006",  # Stationary RTK reference station ARP with antenna height (Input)
-    b"\xf5\x07": "RTCM3-1007",  # Antenna descriptor (Input)
-    b"\xf5\x09": "RTCM3-1009",  # L1-only GLONASS RTK observables (Input)
-    b"\xf5\x0a": "RTCM3-1010",  # Extended L1-Only GLONASS RTK observables (Input)
-    b"\xf5\xa1": "RTCM3-1011",  # L1&L2 GLONASS RTK observables (Input)
-    b"\xf5\xa2": "RTCM3-1012",  # Extended L1&L2 GLONASS RTK observables (Input)
-    b"\xf5\x21": "RTCM3-1033",  # Receiver and antenna descriptors (Input)
-    b"\xf5\x4a": "RTCM3-1074",  # GPS MSM4 (Input/output)
-    b"\xf5\x4b": "RTCM3-1075",  # GPS MSM5 (Input)
-    b"\xf5\x4d": "RTCM3-1077",  # GPS MSM7 (Input/output)
-    b"\xf5\x54": "RTCM3-1084",  # GLONASS MSM4 (Input/output)
-    b"\xf5\x55": "RTCM3-1085",  # GLONASS MSM5 (Input)
-    b"\xf5\x57": "RTCM3-1087",  # GLONASS MSM7 (Input/output)
-    b"\xf5\x5e": "RTCM3-1094",  # Galileo MSM4 (Input/output)
-    b"\xf5\x5f": "RTCM3-1095",  # Galileo MSM5 (Input)
-    b"\xf5\x61": "RTCM3-1097",  # Galileo MSM7 (Input/output)
-    b"\xf5\x7c": "RTCM3-1124",  # BeiDou MSM4 (Input/output)
-    b"\xf5\x7d": "RTCM3-1125",  # BeiDou MSM5 (Input)
-    b"\xf5\x7f": "RTCM3-1127",  # BeiDou MSM7 (Input/output)
-    b"\xf5\xe6": "RTCM3-1230",  # GLONASS L1 and L2 code-phase biases (Input/output)
-    b"\xf5\xfe": "RTCM3-4072",  # Reference station PVT (u-blox proprietary) (Input/output)
-    b"\xf5\xfd": "RTCM3-4072",  # Additional reference station information
     # ***************************************************************
     # Dummy message for testing only
     # ***************************************************************

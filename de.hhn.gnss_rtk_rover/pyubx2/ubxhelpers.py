@@ -241,14 +241,14 @@ def val2bytes(val, att: str) -> bytes:
     if atttyp(att) in ("C", "X"):  # byte or char
         valb = val
     elif atttyp(att) in ("E", "L", "U"):  # unsigned integer
-        valb = val.to_bytes(atts, byteorder="little", signed=False)
+        valb = int(val).to_bytes(atts, "little", False)
     elif atttyp(att) == "A":  # array of unsigned integers
         atts = attsiz(att)
         valb = b""
         for i in range(atts):
-            valb += val[i].to_bytes(1, byteorder="little", signed=False)
+            valb += val[i].to_bytes(1, "little", False)
     elif atttyp(att) == "I":  # signed integer
-        valb = val.to_bytes(atts, byteorder="little", signed=True)
+        valb = int(val).to_bytes(atts, "little", True)
     elif att == ubt.R4:  # single precision floating point
         valb = struct.pack("<f", val)
     elif att == ubt.R8:  # double precision floating point
@@ -275,20 +275,20 @@ def bytes2val(valb: bytes, att: str) -> object:
     elif atttyp(att) in ("X", "C"):
         val = valb
     elif atttyp(att) in ("E", "L", "U"):  # unsigned integer
-        val = int.from_bytes(valb, "little", signed=False)
+        val = int.from_bytes(valb, "little", False)
     elif atttyp(att) == "A":  # array of unsigned integers
         atts = attsiz(att)
         val = []
         for i in range(atts):
             val.append(valb[i])
     elif atttyp(att) == "I":  # signed integer
-        val = int.from_bytes(valb, "little", signed=True)
+        val = int.from_bytes(valb, "little", True)
     elif att == ubt.R4:  # single precision floating point
         val = struct.unpack("<f", valb)[0]
     elif att == ubt.R8:  # double precision floating point
         val = struct.unpack("<d", valb)[0]
     else:
-        raise ube.UBXTypeError(f"Unknown attribute type {att}")
+        raise ube.UBXTypeError("Unknown attribute type {}".format(att))
     return val
 
 

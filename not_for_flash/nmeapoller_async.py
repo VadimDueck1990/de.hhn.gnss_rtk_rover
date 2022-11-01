@@ -69,8 +69,8 @@ async def main():
     # initialize serials
     i2c_zed_f9p = I2C(0, scl=Pin(17), sda=Pin(16))
 
-    uart = UART(0, 38400, timeout=500)
-    uart.init(bits=8, parity=None, stop=1, tx=masterTx, rx=masterRx, rxbuf=1024)
+    uart = UART(0, 115200, timeout=500)
+    uart.init(bits=8, parity=None, stop=1, tx=masterTx, rx=masterRx, rxbuf=4096)
 
     nmr = NMEAReader(i2c=i2c_zed_f9p, uart=uart)
 

@@ -11,6 +11,7 @@ Created on 10 Oct 2022
 
 :author: vdueck
 """
+from pyubx2.ubxreader import UBXReader
 import binascii
 # pylint: disable=invalid-name
 import uasyncio
@@ -19,7 +20,6 @@ from machine import UART
 import time
 from primitives.queue import Queue
 import socket
-from pyubx2.ubxreader import UBXReader
 from pyubx2.ubxtypes_core import RTCM3_PROTOCOL, ERR_IGNORE
 from pyrtcm import (
     RTCMParseError,

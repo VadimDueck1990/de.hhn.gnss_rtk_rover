@@ -10,6 +10,7 @@ Created on 26 Sep 2020
 # pylint: disable=invalid-name
 
 import struct
+from collections import OrderedDict
 import pyubx2.exceptions as ube
 import pyubx2.ubxtypes_core as ubt
 import pyubx2.ubxtypes_get as ubg
@@ -94,45 +95,45 @@ class UBXMessage:
         offset = 0  # payload offset in bytes
         index = []  # array of (nested) group indices
 
-        try:
+        # try:
 
-            if len(kwargs) == 0:  # if no kwargs, assume null payload
-                self._payload = None
-            else:
-                self._payload = kwargs.get("payload", b"")
-                pdict = self._get_dict(**kwargs)  # get appropriate payload dict
-                for key in pdict:  # process each attribute in dict
-                    (offset, index) = self._set_attribute(
-                        offset, pdict, key, index, **kwargs
-                    )
-            self._do_len_checksum()
+        if len(kwargs) == 0:  # if no kwargs, assume null payload
+            self._payload = None
+        else:
+            self._payload = kwargs.get("payload", b"")
+            pdict = self._get_dict(**kwargs)  # get appropriate payload dict
+            for key in pdict:  # process each attribute in dict
+                (offset, index) = self._set_attribute(
+                    offset, pdict, key, index, **kwargs
+                )
+        self._do_len_checksum()
 
-        except (
-            AttributeError,
-            struct.error,
-            TypeError,
-            ValueError,
-        ) as err:
-            raise ube.UBXTypeError(
-                (
-                    "Incorrect type for attribute '{}' in {} message. class {}". format(key, self._mode, self.identity)
-                )
-            ) from err
-        except (OverflowError,) as err:
-            raise ube.UBXTypeError(
-                (
-                    "Overflow error for attribute '{}' in {} message. class {}".format(key, self._mode, self.identity)
-                )
-            ) from err
+        # except (
+        #     AttributeError,
+        #     struct.error,
+        #     TypeError,
+        #     ValueError,
+        # ) as err:
+        #     raise ube.UBXTypeError(
+        #         (
+        #             "Incorrect type for attribute '{}' in {} message. class {}". format(key, self._mode, self.identity)
+        #         )
+        #     ) from err
+        # except (OverflowError,) as err:
+        #     raise ube.UBXTypeError(
+        #         (
+        #             "Overflow error for attribute '{}' in {} message. class {}".format(key, self._mode, self.identity)
+        #         )
+        #     ) from err
 
     def _set_attribute(
-        self, offset: int, pdict: dict, key: str, index: list, **kwargs
+        self, offset: int, pdict: OrderedDict, key: str, index: list, **kwargs
     ) -> tuple:
         """
         Recursive routine to set individual or grouped payload attributes.
 
         :param int offset: payload offset in bytes
-        :param dict pdict: dict representing payload definition
+        :param OderedDict pdict: dict representing payload definition
         :param str key: attribute keyword
         :param list index: repeating group index array
         :param kwargs: optional payload key/value pairs
@@ -486,7 +487,7 @@ class UBXMessage:
                 self._ubxClass + self._ubxID + self._length + self._payload
             )
 
-    def _get_dict(self, **kwargs) -> dict:
+    def _get_dict(self, **kwargs) -> OrderedDict:
         """
         Get payload dictionary corresponding to message mode (GET/SET/POLL)
         Certain message types need special handling as alternate payload
@@ -846,6 +847,11 @@ class UBXMessage:
         if self.payload is None:
             return f"<UBX({umsg_name})>"
 
+        varcount = 0
+        for i, att in enumerate(self.__dict__):
+            if att[0] != "_":
+                varcount = varcount + 1
+
         stg = f"<UBX({umsg_name}, "
         for i, att in enumerate(self.__dict__):
             if att[0] != "_":  # only show public attributes
@@ -866,8 +872,11 @@ class UBXMessage:
                         msgid = val2bytes(val, ubt.U1)
                         val = ubt.UBX_MSGIDS.get(clsid + msgid, clsid + msgid)
                 stg += att + "=" + str(val)
-                if i < len(self.__dict__) - 1:
+                varcount = varcount - 1
+                if varcount > 0:
                     stg += ", "
+                # if i < len(self.__dict__) - 1:
+                #     stg += ", "
         stg += ")>"
 
         return stg
