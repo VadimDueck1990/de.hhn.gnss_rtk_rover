@@ -136,7 +136,7 @@ class Logger:
         sys.print_exception(e, _stream)
 
 
-_level = DEBUG
+_level = INFO
 _loggers = {}
 
 

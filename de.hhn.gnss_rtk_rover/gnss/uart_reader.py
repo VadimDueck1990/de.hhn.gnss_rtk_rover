@@ -10,7 +10,7 @@ Created on 4 Sep 2022
 
 :author: vdueck
 """
-
+import gc
 import uasyncio
 
 import primitives.queue
@@ -68,16 +68,46 @@ class UartReader:
                 # read the rest of the NMEA message from the buffer
                 byten = await self._sreader.readline() # NMEA protocol is CRLF-terminated
                 raw_data = bytehdr + byten
+                # calculate checksum
+                if not _isvalid_cksum(raw_data):
+                    _logger.warn("NMEA Sentence corrupted, invalid checksum")
+                    gc.collect()
+                    continue
                 _logger.info("nmea sentence received: " + str(raw_data))
                 # if the queue is full then skip. The gga consumer needs to handle messages fast enough otherwise
                 # rxBuffer will overflow
                 if self._gga_q.full():
+                    gc.collect()
                     continue
                 await self._gga_q.put(raw_data)
             # if it's a UBX message (b'\xb5\x62')
             if bytehdr in ubt.UBX_HDR:
                 msg = await self._parse_ubx(bytehdr)
-                _logger.info("ubx message parsed: " + str(msg))
+                _logger.info("ubx message received: " + str(msg))
+                if msg.msg_cls == b"\x05":  # ACK-ACK or ACK-NACK message
+                    _logger.info("Parsed ACK/NACK Message")
+                    _logger.info("msgid: " + str(msg.msg_id))
+                    if self._ack_nack_q.full():
+                        gc.collect()
+                        continue
+                    await self._ack_nack_q.put(msg)
+                    gc.collect()
+                if msg.msg_cls == b"\x06":  # CFG message
+                    _logger.info("Parsed CFG Message")
+                    _logger.info("msgid: " + str(msg.msg_id))
+                    if self._cfg_resp_q.full():
+                        gc.collect()
+                        continue
+                    await self._cfg_resp_q.put(msg)
+                    gc.collect()
+                if msg.msg_cls == b"\x01":  # NAV message
+                    _logger.info("Parsed NAV Message")
+                    _logger.info("msgid: " + str(msg.msg_id))
+                    if self._cfg_resp_q.full():
+                        gc.collect()
+                        continue
+                    await self._nav_pvt_q.put(msg)
+                    gc.collect()
 
     async def _parse_ubx(self, hdr: bytes) -> UBXMessage:
         """
@@ -126,8 +156,6 @@ class UartReader:
         hdr = message[0:2]
         clsid = message[2:3]
         msgid = message[3:4]
-        # if msgid == b"\x03":  # NAV-STATUS
-        #     msgmode = 1
         lenb = message[4:6]
         if lenb == b"\x00\x00":
             payload = None
@@ -172,3 +200,89 @@ class UartReader:
                 """Unknown message type clsid {}, msgid {}, mode {}.\n
                 Check 'msgmode' keyword argument is appropriate for message category""".format(clsid, msgid, modestr)
             ) from err
+
+
+def _int2hexstr(val: int) -> str:
+    """
+    Convert integer to hex string representation.
+
+    :param int val: integer < 255 e.g. 31
+    :return: hex representation of integer e.g. '1F'
+    :rtype: str
+    """
+    raw_hex = str(hex(val)).upper()
+    final_hex = raw_hex[2:]
+    if len(final_hex) < 2:
+        return "0" + final_hex
+    return final_hex
+
+
+def _get_content(message: object) -> str:
+    """
+    Get content of raw NMEA message (everything between "$" and "*").
+
+    :param object message: entire message as bytes or string
+    :return: content as str
+    :rtype: str
+    """
+
+    if isinstance(message, bytes):
+        message = message.decode("utf-8")
+    content, _ = message.strip("$\r\n").split("*", 1)
+    return content
+
+
+def _calc_checksum(message: object) -> str:
+    """
+    Calculate checksum for raw NMEA message.
+
+    :param object message: entire message as bytes or string
+    :return: checksum as hex string
+    :rtype: str
+    """
+
+    content = _get_content(message)
+    cksum = 0
+    for sub in content:
+        cksum ^= ord(sub)
+    return _int2hexstr(cksum)
+
+
+def _isvalid_cksum(message: object) -> bool:
+    """
+    Validate raw NMEA message checksum.
+
+    :param bytes message: entire message as bytes or string
+    :return: checksum valid flag
+    :rtype: bool
+    """
+    _, _, _, cksum = _get_parts(message)
+    return cksum == _calc_checksum(message)
+
+
+def _get_parts(message: object) -> tuple:
+    """
+    Get talker, msgid, payload and checksum of raw NMEA message.
+
+    :param object message: entire message as bytes or string
+    :return: tuple of (talker as str, msgID as str, payload as list, checksum as str)
+    :rtype: tuple
+    :raises: NMEAMessageError (if message is badly formed)
+    """
+
+    try:
+        if isinstance(message, bytes):
+            message = message.decode("utf-8")
+        content, cksum = message.strip("$\r\n").split("*", 1)
+
+        hdr, payload = content.split(",", 1)
+        payload = payload.split(",")
+        if hdr[0:1] == "P":  # proprietary
+            talker = "P"
+            msgid = hdr[1:]
+        else:  # standard
+            talker = hdr[0:2]
+            msgid = hdr[2:]
+        return talker, msgid, payload, cksum
+    except Exception as err:
+        raise ube.NMEAMessageError(f"Badly formed message {message}") from err

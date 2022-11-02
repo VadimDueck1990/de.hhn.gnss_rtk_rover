@@ -9,7 +9,7 @@ Created on 4 Sep 2022
 
 :author: vdueck
 """
-
+import gc
 import uasyncio
 import primitives.queue
 import utils.logging as logging
@@ -40,6 +40,7 @@ class UartWriter:
         """
         while True:
             msg = await self._queue.get()
-            _logger.info("Sending message over UART1: " + str(msg))
+            _logger.debug("Sending message over UART1: " + str(msg))
             self._swriter.write(msg.serialize())
             await self._swriter.drain()
+            gc.collect()

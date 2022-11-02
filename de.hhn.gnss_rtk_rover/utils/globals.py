@@ -7,6 +7,10 @@ Created on 27 Oct 2022
 """
 from utils import logging
 
+# UART
+UART1_TX = 0
+UART1_RX = 1
+
 # WiFi
 # WIFI_SSID = "WLAN-L45XAB"
 # WIFI_PW = "7334424916822832"

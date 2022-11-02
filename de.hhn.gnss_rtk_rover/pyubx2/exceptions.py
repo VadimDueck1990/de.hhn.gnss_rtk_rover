@@ -41,3 +41,10 @@ class UBXTypeError(Exception):
     UBX Undefined payload attribute type.
     Essentially a prompt to fix incorrect payload definitions to UBX_PAYLOADS.
     """
+
+
+class NMEAMessageError(Exception):
+    """
+    NMEA Undefined message class/id.
+    Essentially a prompt to add missing payload types to UBX_PAYLOADS.
+    """
