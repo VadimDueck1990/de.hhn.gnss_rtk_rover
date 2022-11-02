@@ -48,3 +48,29 @@ class NMEAMessageError(Exception):
     NMEA Undefined message class/id.
     Essentially a prompt to add missing payload types to UBX_PAYLOADS.
     """
+
+
+class RTCMParseError(Exception):
+    """
+    RTCM Parsing error.
+    """
+
+
+class RTCMStreamError(Exception):
+    """
+    RTCM Streaming error.
+    """
+
+
+class RTCMMessageError(Exception):
+    """
+    RTCM Undefined message class/id.
+    Essentially a prompt to add missing payload types to rtcm_PAYLOADS.
+    """
+
+
+class RTCMTypeError(Exception):
+    """
+    RTCM Undefined payload attribute type.
+    Essentially a prompt to fix incorrect payload definitions to rtcm_PAYLOADS.
+    """

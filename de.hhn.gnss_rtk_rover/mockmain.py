@@ -6,6 +6,7 @@ from gnss.gnss_handler import GnssHandler
 from gnss.uart_writer import UartWriter
 from primitives.queue import Queue
 from gnss.uart_reader import UartReader
+from gnss.gnssntripclient import GNSSNTRIPClient
 
 
 async def main():

@@ -13,7 +13,6 @@ Created on 10 Oct 2022
 """
 from pyubx2.ubxreader import UBXReader
 import binascii
-# pylint: disable=invalid-name
 import uasyncio
 from uasyncio import Event
 from machine import UART
@@ -21,7 +20,7 @@ import time
 from primitives.queue import Queue
 import socket
 from pyubx2.ubxtypes_core import RTCM3_PROTOCOL, ERR_IGNORE
-from pyrtcm import (
+from pyubx2.exceptions import (
     RTCMParseError,
     RTCMMessageError,
     RTCMTypeError,
@@ -41,10 +40,11 @@ from utils.globals import (
     REF_LON,
     REF_ALT,
 )
-from _version import __version__ as VERSION
-from helpers import find_mp_distance
+
+from gnss.helpers import find_mp_distance
 
 TIMEOUT = 10
+VERSION = "0.1.0"
 USERAGENT = f"HHN BW NTRIP Client/{VERSION}"
 NTRIP_HEADERS = {
     "Ntrip-Version": "Ntrip/2.0",
