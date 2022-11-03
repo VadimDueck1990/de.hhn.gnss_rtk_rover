@@ -1,21 +1,15 @@
 """
 UartWriter class.
-
 Connect the ucontroller to the GNSS Receiver.
 Send messages from the Queue to the receiver
-
-
 Created on 4 Sep 2022
-
 :author: vdueck
 """
 import gc
-import uasyncio
-import primitives.queue
-import utils.logging as logging
-
-_logger = logging.getLogger("uart_writer")
 gc.collect()
+
+import primitives.queue
+import uasyncio
 
 
 class UartWriter:
@@ -47,8 +41,9 @@ class UartWriter:
         ASYNC: Send incoming messages from queue to the GNSS receiver.
         """
         while True:
+            gc.collect()
             msg = await cls._queue.get()
-            _logger.debug("Sending message over UART1")
+            print("Sending message over UART1")
             cls._swriter.write(msg)
             await cls._swriter.drain()
-            gc.collect()
+

@@ -257,25 +257,18 @@ class GnssHandler:
         for (msgid, msgname) in UBX_MSGIDS.items():
             if msgid[0] == 0xf0:  # NMEA
                 if msgid[1] == 0x00:  # NMEA-GGA
-                    msgnmea = UBXMessage(
-                        cls._cfg_cls,
-                        cls._cfg_msg,
-                        SET,
-                        msgClass=msgid[0],
-                        msgID=msgid[1],
-                        rateUART1=0,
-                        rateUSB=0,
-                    )
+                    rate = 1
                 else:
-                    msgnmea = UBXMessage(
-                        cls._cfg_cls,
-                        cls._cfg_msg,
-                        SET,
-                        msgClass=msgid[0],
-                        msgID=msgid[1],
-                        rateUART1=0,
-                        rateUSB=0,
-                    )
+                    rate = 0
+                msgnmea = UBXMessage(
+                    cls._cfg_cls,
+                    cls._cfg_msg,
+                    SET,
+                    msgClass=msgid[0],
+                    msgID=msgid[1],
+                    rateUART1=rate,
+                    rateUSB=0,
+                )
                 await cls._msg_q.put(msgnmea.serialize())
                 gc.collect()
         gc.collect()
