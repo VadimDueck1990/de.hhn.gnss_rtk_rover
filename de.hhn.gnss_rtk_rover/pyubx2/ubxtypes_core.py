@@ -1,10 +1,7 @@
 """
 UBX Protocol core globals and constants
-
 Created on 27 Sep 2020
-
 Information sourced from u-blox Interface Specifications © 2013-2021, u-blox AG
-
 :author: semuadmin
 """
 
@@ -44,9 +41,7 @@ SCAL2 = 1e-2  # 0.01
 SCAL1 = 1e-1  # 0.1
 SCALROUND = 12  # number of dp to round scaled attributes to
 
-# **************************************************
 # THESE ARE THE UBX PROTOCOL PAYLOAD ATTRIBUTE TYPES
-# **************************************************
 A250 = "A250"  # Array of 250 bytes, parsed as U1[250]
 A256 = "A256"  # Array of 256 bytes, parsed as U1[256]
 C2 = "C002"  # ASCII / ISO 8859.1 Encoding 2 bytes
@@ -92,10 +87,7 @@ X24 = "X024"  # Bitfield 24 bytes
 R4 = "R004"  # Float (IEEE 754) Single Precision 4 bytes
 R8 = "R008"  # Float (IEEE 754) Double Precision 8 bytes
 
-# ***********************************************
 # THESE ARE THE UBX PROTOCOL CORE MESSAGE CLASSES
-# ***********************************************
-# pylint: disable=line-too-long
 UBX_CLASSES = {
     b"\x01": "NAV",  # Navigation Results: Position, Speed, Time, Acc, Heading, DOP, SVs used
     b"\x02": "RXM",  # Receiver Manager Messages: Satellite Status, RTC Status
@@ -111,43 +103,35 @@ UBX_CLASSES = {
     b"\x66": "FOO",  # Dummy message class for testing
 }
 
-# ***************************************************************************
 # THESE ARE THE UBX PROTOCOL CORE MESSAGE IDENTITIES
 # Payloads for each of these identities are defined in the ubxtypes_* modules
-# ***************************************************************************
 UBX_MSGIDS = {
     b"\x05\x01": "ACK-ACK",
     b"\x05\x00": "ACK-NAK",
-    # *********************************************************************
+
     # Configuration messages
-    # Since Gen 9, many of these are deprecated in favour of CFG-VALSET/DEL
-    # *********************************************************************
     b"\x06\x17": "CFG-NMEA",  # NB: 3 versions of this
     b"\x06\x08": "CFG-RATE",
     b"\x06\x01": "CFG-MSG",
     b"\x06\x8c": "CFG-VALDEL",
     b"\x06\x8b": "CFG-VALGET",
     b"\x06\x8a": "CFG-VALSET",
-    # ***************************************************************
+
     # Navigation messages
-    # ***************************************************************
     b"\x01\x07": "NAV-PVT",
     b"\x01\x35": "NAV-SAT",
     b"\x01\x43": "NAV-SIG",
     b"\x01\x03": "NAV-STATUS",
     b"\x01\x3b": "NAV-SVIN",
-    # ***************************************************************
+
     # Receiver Management messages
-    # ***************************************************************
     b"\x02\x32": "RXM-RTCM",
-    # ***************************************************************
+
     # Firmware update messages
-    # ***************************************************************
     b"\x09\x14": "UPD-SOS",
-    # ***************************************************************
+
     # NMEA Standard message types
     # Used to poll message rates via CFG-MSG; not parsed by pyubx2
-    # ***************************************************************
     b"\xf0\x0a": "DTM",  # Datum Reference
     b"\xf0\x45": "GAQ",  # Poll Standard Message - Talker ID GA (Galileo)
     b"\xf0\x44": "GBQ",  # Poll Standard Message - Talker ID GB (BeiDou)
@@ -170,20 +154,4 @@ UBX_MSGIDS = {
     b"\xf0\x0f": "VLW",  # Dual Ground Water Distance
     b"\xf0\x05": "VTG",  # Course over ground and Groundspeed
     b"\xf0\x08": "ZDA",  # Time and Date
-    # ***************************************************************
-    # NMEA Proprietary message types
-    # Used to poll message rates via CFG-MSG; not parsed by pyubx2
-    # ***************************************************************
-    b"\xf1\x00": "UBX-00",  # aka PUBX-POSITION Lat/Long Position Data
-    b"\xf1\x01": "UBX-01",  # unknown - not publicly documented?
-    b"\xf1\x03": "UBX-03",  # aka PUBX-SVSTATUS Satellite Status
-    b"\xf1\x04": "UBX-04",  # aka PUBX-TIME Time of Day and Clock Information
-    b"\xf1\x05": "UBX-05",  # Lat/Long Position Data
-    b"\xf1\x06": "UBX-06",  # Lat/Long Position Data
-    b"\xf1\x40": "UBX-40",  # Set NMEA message output rate
-    b"\xf1\x41": "UBX-41",  # aka PUBX-CONFIG Set Protocols and Baudrate
-    # ***************************************************************
-    # Dummy message for testing only
-    # ***************************************************************
-    b"\x66\x66": "FOO-BAR",
 }
