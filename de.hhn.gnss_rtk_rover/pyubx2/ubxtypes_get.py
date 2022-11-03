@@ -3,59 +3,29 @@ UBX Protocol Output payload definitions
 
 THESE ARE THE PAYLOAD DEFINITIONS FOR _GET_ MESSAGES _FROM_ THE RECEIVER
 (e.g. Periodic Navigation Data; Poll Responses; Info messages)
-
 Created on 27 Sep 2020
-
 Information sourced from u-blox Interface Specifications © 2013-2021, u-blox AG
-
 :author: semuadmin
 """
-# pylint: disable=too-many-lines, line-too-long
 from collections import OrderedDict
 
 from pyubx2.ubxtypes_core import (
-    A250,
-    A256,
     C2,
-    C6,
-    C10,
-    C30,
-    C32,
-    CH,
     I1,
     I2,
     I4,
-    R4,
-    R8,
     U1,
     U2,
     U3,
     U4,
     U5,
     U6,
-    U7,
-    U8,
     U9,
-    U10,
-    U11,
-    U12,
-    U16,
-    U20,
-    U22,
-    U23,
-    U24,
-    U32,
-    U64,
     X1,
     X2,
     X4,
-    X24,
-    SCAL9,
     SCAL7,
-    SCAL6,
     SCAL5,
-    SCAL4,
-    SCAL3,
     SCAL2,
     SCAL1,
 )
@@ -64,7 +34,6 @@ from pyubx2.ubxtypes_core import (
 UBX_PAYLOADS_GET = OrderedDict({
     "ACK-ACK": OrderedDict({"clsID": U1, "msgID": U1}),
     "ACK-NAK": OrderedDict({"clsID": U1, "msgID": U1}),
-    # ********************************************************************
     # Configuration Input Messages: i.e. Set Dynamic Model, Set DOP Mask, Set Baud Rate, etc..
     # Messages in the CFG class are used to configure the receiver and read out current configuration values. Any
     # messages in the CFG class sent to the receiver are either acknowledged (with message UBX-ACK-ACK) if
@@ -304,7 +273,7 @@ UBX_PAYLOADS_GET = OrderedDict({
             }),
         ),
     }),
-"NAV-STATUS": OrderedDict({
+    "NAV-STATUS": OrderedDict({
         "iTOW": U4,
         "gpsFix": U1,
         "flags": (
@@ -338,7 +307,6 @@ UBX_PAYLOADS_GET = OrderedDict({
         "ttff": U4,
         "msss": U4,
     }),
-    # ********************************************************************
     # Receiver Manager Messages: i.e. Satellite Status, RTC Status.
     # Messages in the RXM class are used to output status and result data from the Receiver Manager. The output
     # rate is not bound to the navigation/measurement rate and messages can also be generated on events.
@@ -355,7 +323,6 @@ UBX_PAYLOADS_GET = OrderedDict({
         "refStation": U2,
         "msgType": U2,
     }),
-    # ********************************************************************
     # Firmware Update Messages: i.e. Memory/Flash erase/write, Reboot, Flash identification, etc..
     # Messages in the UPD class are used to update the firmware and identify any attached flash device.
     "UPD-SOS": OrderedDict({  # System restored from backup
@@ -364,7 +331,6 @@ UBX_PAYLOADS_GET = OrderedDict({
         "response": U1,
         "reserved1": U3,
     }),
-    # ********************************************************************
     # UBX nominal payload definition, used as fallback where no documented
     # payload definition is available.
     "UBX-NOMINAL": OrderedDict({
@@ -375,7 +341,4 @@ UBX_PAYLOADS_GET = OrderedDict({
             },
         )
     }),
-    # ********************************************************************
-    # Dummy message for error testing
-    "FOO-BAR": {"spam": "Z2", "eggs": "Y1"},
 })
