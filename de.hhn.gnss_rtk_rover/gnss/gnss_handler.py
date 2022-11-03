@@ -11,43 +11,62 @@ Created on 4 Sep 2022
 :author: vdueck
 """
 import gc
-import uasyncio
 from primitives.queue import Queue
-import utils.logging as logging
 from pyubx2.ubxmessage import UBXMessage
 from pyubx2.ubxtypes_configdb import SET_LAYER_RAM, POLL_LAYER_RAM
 from pyubx2.ubxtypes_core import POLL, SET, GET, UBX_MSGIDS
 
-_logger = logging.getLogger("gnss_handler")
-
-
+gc.collect()
 class GnssHandler:
     """
     GnssHandler class.
     """
+    _app = None
+    _gga_q = None
+    _cfg_response_q = None
+    _nav_msg_q = None
+    _ack_nack_q = None
+    _msg_q = None
 
-    def __init__(self, app: object,
-                 gga_q: Queue,
-                 cfg_resp_q: Queue,
-                 nav_pvt_q: Queue,
-                 ack_nack_q: Queue,
-                 msg_q: Queue):
-        """Constructor.
+    # predefined strings
+    _config_key_gps = "CFG_SIGNAL_GPS_ENA"
+    _config_key_gal = "CFG_SIGNAL_GAL_ENA"
+    _config_key_glo = "CFG_SIGNAL_GLO_ENA"
+    _config_key_bds = "CFG_SIGNAL_BDS_ENA"
+    _nav_cls = "NAV"
+    _cfg_cls = "CFG"
+    _cfg_rate = "CFG-RATE"
+    _cfg_msg = "CFG-MSG"
+    _nav_pvt = "NAV-PVT"
+    _nav_sat = "NAV-SAT"
+
+    @classmethod
+    def initialize(cls,
+                   app: object,
+                   gga_q: Queue,
+                   cfg_resp_q: Queue,
+                   nav_pvt_q: Queue,
+                   ack_nack_q: Queue,
+                   msg_q: Queue):
+        """Initialization method.
         :param object app: The calling app
         :param primitives.queue.Queue gga_q: queue for incoming gga messages
         :param primitives.queue.Queue cfg_resp_q: queue for ubx responses to configuration messages
         :param primitives.queue.Queue nav_pvt_q: queue for incoming ubx NAV-PVT get messaged
         :param primitives.queue.Queue ack_nack_q: queue for incoming ubx ACK-NACK messages
-        :param primitives.queue.Queue ack_nack_q: queue for outgoing ubx messages
+        :param primitives.queue.Queue msg_q: queue for outgoing ubx messages
         """
-        self._app = app
-        self._gga_q = gga_q
-        self._cfg_response_q = cfg_resp_q
-        self._nav_msg_q = nav_pvt_q
-        self._ack_nack_q = ack_nack_q
-        self._msg_q = msg_q
+        cls._app = app
+        cls._gga_q = gga_q
+        cls._cfg_response_q = cfg_resp_q
+        cls._nav_msg_q = nav_pvt_q
+        cls._ack_nack_q = ack_nack_q
+        cls._msg_q = msg_q
 
-    async def set_update_rate(self, update_rate: int) -> bool:
+        gc.collect()
+
+    @classmethod
+    async def set_update_rate(cls, update_rate: int) -> bool:
         """
         ASYNC: Sets the update rate of the GNSS receiver(how often a GGA sentence is sent over UART1)
 
@@ -55,89 +74,85 @@ class GnssHandler:
         :return: True if successful, False if failed
         :rtype: bool
         """
+
+        await cls._flush_receive_qs()
         if update_rate < 50:
             update_rate = 50
         if update_rate > 5000:
             update_rate = 5000
 
         msg = UBXMessage(
-            "CFG",
-            "CFG-RATE",
+            cls._cfg_cls,
+            cls._cfg_rate,
             SET,
             measRate=update_rate,
             navRate=1,
             timeRef=1
         )
-        await self._msg_q.put(msg)
-        ack = await self._ack_nack_q.get()
+        await cls._msg_q.put(msg.serialize())
+        ack = await cls._ack_nack_q.get()
         if ack.msg_id == b'\x01':  # ACK-ACK
+            gc.collect()
             return True
         else:
+            gc.collect()
             return False  # ACK-NACK
 
-    async def get_update_rate(self) -> int:
+    @classmethod
+    async def get_update_rate(cls) -> int:
         """
         ASYNC: Gets the update rate of the GNSS receiver(how often a GGA sentence is sent over UART1)
 
         :return: number representing ms between updates
         :rtype: int
         """
-
+        await cls._flush_receive_qs()
         msg = UBXMessage(
-            "CFG",
-            "CFG-RATE",
+            cls._cfg_cls,
+            cls._cfg_rate,
             GET,
         )
-        await self._msg_q.put(msg)
-        ack = await self._ack_nack_q.get()
-        if ack.msg_id == b'\x01':  # ACK-ACK
-            cfg = await self._cfg_response_q.get()
-            result = cfg.__dict__["measRate"]
-            return int(result)
-        else:  # ACK-NACK
-            while not self._cfg_response_q.empty():
-                await self._cfg_response_q.get()
-            return 0
+        await cls._msg_q.put(msg.serialize())
+        cfg = await cls._cfg_response_q.get()
+        result = cfg.__dict__["measRate"]
+        gc.collect()
+        return int(result)
 
-    async def set_satellite_systems(self,
-                                    GPS: int,
-                                    GLONASS: int,
-                                    Galileo: int,
-                                    BeiDou: int) -> bool:
+    @classmethod
+    async def set_satellite_systems(cls,
+                                    gps: int,
+                                    gal: int,
+                                    glo: int,
+                                    bds: int) -> bool:
         """
         ASYNC: Configure the satellite systems the GNSS receiver should use in his navigation computing
 
-        :param int GPS: GPS On=1 / Off=0
-        :param int GLONASS: GLONASS On=1 / Off=0
-        :param int Galileo: Galileo On=1 / Off=0
-        :param int BeiDou: BeiDou On=1 / Off=0
+        :param int gps: GPS On=1 / Off=0
+        :param int glo: GLONASS On=1 / Off=0
+        :param int gal: Galileo On=1 / Off=0
+        :param int bds: BeiDou On=1 / Off=0
         :return: True if successful, False if failed
         :rtype: bool
         """
-        config_key_gps = "CFG_SIGNAL_GPS_ENA"
-        val_gps = GPS
-        config_key_gal = "CFG_SIGNAL_GAL_ENA"
-        val_gal = Galileo
-        config_key_glo = "CFG_SIGNAL_GLO_ENA"
-        val_glo = GLONASS
-        config_key_bds = "CFG_SIGNAL_BDS_ENA"
-        val_bds = BeiDou
-
+        await cls._flush_receive_qs()
         layer = SET_LAYER_RAM  # volatile memory
         transaction = 0
-        cfg_data = [(config_key_gps, val_gps),
-                   (config_key_gal, val_gal),
-                   (config_key_glo, val_glo),
-                   (config_key_bds, val_bds)]
+        cfg_data = [(cls._config_key_gps, gps),
+                    (cls._config_key_gal, gal),
+                    (cls._config_key_glo, glo),
+                    (cls._config_key_bds, bds)]
         msg = UBXMessage.config_set(layer, transaction, cfg_data)
-        await self._msg_q.put(msg)
-        ack = await self._ack_nack_q.get()
+        await cls._msg_q.put(msg.serialize())
+        ack = await cls._ack_nack_q.get()
         if ack.msg_id == b'\x01':  # ACK-ACK
+            gc.collect()
             return True
         else:
+            gc.collect()
             return False  # ACK-NACK
 
-    async def get_satellite_systems(self) -> dict:
+    @classmethod
+    async def get_satellite_systems(cls) -> dict:
         """
         ASYNC: Get the satellite systems the GNSS receiver uses in his navigation computing
         e.g.:
@@ -150,60 +165,71 @@ class GnssHandler:
         :return: Dictionary with satellite systems and values
         :rtype: dict if successful, None if failed
         """
-        config_key_gps = "CFG_SIGNAL_GPS_ENA"
-        config_key_gal = "CFG_SIGNAL_GAL_ENA"
-        config_key_glo = "CFG_SIGNAL_GLO_ENA"
-        config_key_bds = "CFG_SIGNAL_BDS_ENA"
 
+        await cls._flush_receive_qs()
         layer = POLL_LAYER_RAM  # volatile memory
         position = 0
-        keys = [config_key_gps, config_key_gal, config_key_glo, config_key_bds]
+        keys = [cls._config_key_gps, cls._config_key_gal, cls._config_key_glo, cls._config_key_bds]
         msg = UBXMessage.config_poll(layer, position, keys)
-        await self._msg_q.put(msg)
-        ack = await self._ack_nack_q.get()
-        if ack.msg_id == b'\x01':  # ACK-ACK
-            cfg = await self._cfg_response_q.get()
-            val_gps = cfg.__dict__[config_key_gps]
-            val_glo = cfg.__dict__[config_key_glo]
-            val_gal = cfg.__dict__[config_key_gal]
-            val_bds = cfg.__dict__[config_key_bds]
-            result = {
-                "gps": int(val_gps),
-                "glo": int(val_glo),
-                "gal": int(val_gal),
-                "bds": int(val_bds),
-            }
-            return result
-        else:  # ACK-NACK
-            while not self._cfg_response_q.empty():
-                await self._cfg_response_q.get()
-            return {}
+        await cls._msg_q.put(msg.serialize())
+        cfg = await cls._cfg_response_q.get()
+        val_gps = cfg.__dict__[cls._config_key_gps]
+        val_glo = cfg.__dict__[cls._config_key_glo]
+        val_gal = cfg.__dict__[cls._config_key_gal]
+        val_bds = cfg.__dict__[cls._config_key_bds]
+        result = {
+            "gps": int(val_gps),
+            "glo": int(val_glo),
+            "gal": int(val_gal),
+            "bds": int(val_bds),
+        }
+        gc.collect()
+        return result
 
-    async def get_precision(self) -> tuple:
+    @classmethod
+    async def get_precision(cls) -> tuple:
         """
         ASYNC: Gets precision of measurement
 
         :return: hAcc, Vacc
         :rtype: int, int
         """
+        await cls._flush_receive_qs()
         msg = UBXMessage(
-            "NAV",
-            "NAV-PVT",
+            cls._nav_cls,
+            cls._nav_pvt,
             GET
         )
-        await self._msg_q.put(msg)
-        ack = await self._ack_nack_q.get()
-        if ack.msg_id == b'\x01':  # ACK-ACK
-            nav = await self._nav_msg_q.get()
-            hAcc = nav.__dict__["hAcc"]
-            vAcc = nav.__dict__["vAcc"]
-            return hAcc, vAcc
-        else:  # ACK-NACK
-            while not self._nav_msg_q.empty():
-                await self._nav_msg_q.get()
-            return None, None
+        await cls._msg_q.put(msg.serialize())
+        nav = await cls._nav_msg_q.get()
+        # if ack.msg_id == b'\x01':  # ACK-ACK
+        h_acc = nav.__dict__["hAcc"]
+        v_acc = nav.__dict__["vAcc"]
+        gc.collect()
+        return h_acc, v_acc
 
-    async def get_satellites_in_use(self) -> UBXMessage:
+    @classmethod
+    async def get_fixtype(cls) -> int:
+        """
+        ASYNC: Gets fix type of navigation
+
+        :return: fixtype
+        :rtype: int
+        """
+        await cls._flush_receive_qs()
+        msg = UBXMessage(
+            cls._nav_cls,
+            cls._nav_pvt,
+            GET
+        )
+        await cls._msg_q.put(msg.serialize())
+        nav = await cls._nav_msg_q.get()
+        fixtype = nav.__dict__["fixType"]
+        gc.collect()
+        return fixtype
+
+    @classmethod
+    async def get_satellites_in_use(cls) -> UBXMessage:
         """
         ASYNC: Get the satellites used in navigation
         ATTENTION: Method does not work yet. Uses to much heap to create NAV-SAT Message!!!!!!!!
@@ -211,52 +237,59 @@ class GnssHandler:
         :rtype: UBXMessage
         """
         gc.collect()
-
+        await cls._flush_receive_qs()
         msg = UBXMessage(
-            "NAV",
-            "NAV-SAT",
+            cls._nav_cls,
+            cls._nav_sat,
             GET
         )
-        await self._msg_q.put(msg)
-        ack = await self._ack_nack_q.get()
-        if ack.msg_id == b'\x01':  # ACK-ACK
-            nav = await self._nav_msg_q.get()
-            return nav
-        else:  # ACK-NACK
-            while not self._nav_msg_q.empty():
-                await self._nav_msg_q.get()
-            return None
+        await cls._msg_q.put(msg.serialize())
+        nav = await cls._nav_msg_q.get()
+        gc.collect()
+        return nav
 
-    async def set_minimum_nmea_msgs(self):
+    @classmethod
+    async def set_minimum_nmea_msgs(cls):
         """
         ASYNC: Deactivate all NMEA messages on UART1, except NMEA-GGA
         """
+        await cls._flush_receive_qs()
         for (msgid, msgname) in UBX_MSGIDS.items():
             if msgid[0] == 0xf0:  # NMEA
                 if msgid[1] == 0x00:  # NMEA-GGA
                     msgnmea = UBXMessage(
-                        "CFG",
-                        "CFG-MSG",
-                        SET,
-                        msgClass=msgid[0],
-                        msgID=msgid[1],
-                        rateUART1=1,
-                        rateUSB=0,
-                    )
-                else:
-                    msgnmea = UBXMessage(
-                        "CFG",
-                        "CFG-MSG",
+                        cls._cfg_cls,
+                        cls._cfg_msg,
                         SET,
                         msgClass=msgid[0],
                         msgID=msgid[1],
                         rateUART1=0,
                         rateUSB=0,
                     )
-                await self._msg_q.put(msgnmea)
-                if not self._ack_nack_q.empty():
-                    ack = await self._ack_nack_q.get()
-                    _logger.debug("received ACK-MSG:" + str(ack))
+                else:
+                    msgnmea = UBXMessage(
+                        cls._cfg_cls,
+                        cls._cfg_msg,
+                        SET,
+                        msgClass=msgid[0],
+                        msgID=msgid[1],
+                        rateUART1=0,
+                        rateUSB=0,
+                    )
+                await cls._msg_q.put(msgnmea.serialize())
                 gc.collect()
         gc.collect()
+
+    @classmethod
+    async def _flush_receive_qs(cls):
+        """
+        ASYNC: Empty all receiving queues
+        """
+        while not cls._ack_nack_q.empty:
+            await cls._ack_nack_q.get()
+        while not cls._nav_msg_q.empty:
+            await cls._nav_msg_q.get()
+        while not cls._cfg_response_q.empty:
+            await cls._cfg_response_q.get()
+
 

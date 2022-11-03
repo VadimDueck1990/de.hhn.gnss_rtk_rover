@@ -11,6 +11,7 @@ Created on 10 Oct 2022
 
 :author: vdueck
 """
+import primitives.queue
 from pyubx2.ubxreader import UBXReader
 import binascii
 import uasyncio
@@ -41,7 +42,7 @@ from utils.globals import (
     REF_ALT,
 )
 
-from gnss.helpers import find_mp_distance
+# from gnss.helpers import find_mp_distance
 
 TIMEOUT = 10
 VERSION = "0.1.0"
@@ -70,7 +71,7 @@ class GNSSNTRIPClient:
     NTRIP client class.
     """
 
-    def __init__(self, rtcmoutput: UART, app=None):
+    def __init__(self, rtcmoutput: UART, app: object, gga_q: primitives.queue.Queue, stopevent: uasyncio.Event):
         """
         Constructor.
 
@@ -83,10 +84,11 @@ class GNSSNTRIPClient:
         self._socket = None
         self._read_task = None
         self._connected = False
-        self._stopevent = Event()
+        self._stopevent = stopevent
         self._output = uasyncio.StreamWriter(rtcmoutput)
         self._validargs = False
         self._last_gga = time.ticks_ms()
+        self._gga_queue = gga_q
 
         # persist settings to allow any calling app to retrieve them
         self._settings = {
@@ -98,7 +100,6 @@ class GNSSNTRIPClient:
             "user": "anon",
             "password": "password",
             "ggainterval": "None",
-            "ggamode": GGALIVE,
             "sourcetable": [],
             "reflat": "",
             "reflon": "",
@@ -118,7 +119,7 @@ class GNSSNTRIPClient:
         Context manager exit routine.
         """
 
-        self.stop()
+        # self.stop()
 
     @property
     def settings(self):
@@ -136,7 +137,7 @@ class GNSSNTRIPClient:
 
         return self._connected
 
-    async def run(self) -> bool:
+    async def run(self):
         """
         Open NTRIP server connection.
 
@@ -154,7 +155,6 @@ class GNSSNTRIPClient:
         :param str user: login user ("anon" or env variable NTRIP_USER)
         :param str password: login password ("password" or env variable NTRIP_PASSWORD)
         :param int ggainterval: GGA sentence transmission interval (-1 = None)
-        :param int ggamode: GGA pos source; 0 = live from receiver, 1 = fixed reference (0)
         :param str reflat: reference latitude ("")
         :param str reflon: reference longitude ("")
         :param str refalt: reference altitude ("")
@@ -163,21 +163,6 @@ class GNSSNTRIPClient:
         :returns: boolean flag 0 = terminated, 1 = Ok to stream RTCM3 data from server
         :rtype: bool
         """
-        # pylint: disable=unused-variable
-
-        # try:
-        # self._settings["server"] = server = kwargs.get("server", NTRIP_SERVER)
-        # self._settings["port"] = port = int(kwargs.get("port", OUTPORT_NTRIP))
-        # self._settings["mountpoint"] = mountpoint = kwargs.get("mountpoint", MOUNTPOINT)
-        # self._settings["version"] = kwargs.get("version", "2.0")
-        # self._settings["user"] = kwargs.get("user", user)
-        # self._settings["password"] = kwargs.get("password", password)
-        # self._settings["ggainterval"] = int(kwargs.get("ggainterval", NOGGA))
-        # self._settings["ggamode"] = int(kwargs.get("ggamode", GGALIVE))
-        # self._settings["reflat"] = kwargs.get("reflat", REF_LAT)
-        # self._settings["reflon"] = kwargs.get("reflon", REF_LON)
-        # self._settings["refalt"] = kwargs.get("refalt", REF_ALT)
-        # self._settings["refsep"] = kwargs.get("refsep", "")
 
         self._settings["server"] = NTRIP_SERVER
         self._settings["port"] = int(OUTPORT_NTRIP)
@@ -186,44 +171,30 @@ class GNSSNTRIPClient:
         self._settings["user"] = NTRIP_USER
         self._settings["password"] = NTRIP_PW
         self._settings["ggainterval"] = int(GGA_INTERVAL * 1000)
-        self._settings["ggamode"] = int(GGALIVE)
         self._settings["reflat"] = REF_LAT
         self._settings["reflon"] = REF_LON
         self._settings["refalt"] = REF_ALT
         self._settings["refsep"] = ""
-
-        # if server == "":
-        #     raise ParameterError(f"Invalid server url {server}")
-        # if port > MAXPORT or port < 1:
-        #     raise ParameterError(f"Invalid port {port}")
-
-        # except (ParameterError, ValueError, TypeError) as err:
-        #     self._do_log(
-        #         f"Invalid input arguments bla\n{err}\n"
-        #         + "Type gnssntripclient -h for help.",
-        #         VERBOSITY_LOW,
-        #     )
-        #     self._validargs = False
-
         self._validargs = True
         self._connected = True
-        if self._validargs:
-            await self._start_read_task(
-                self._settings,
-                self._stopevent,
-                self._output,
-            )
-            if mountpoint != "":
-                return False
-        return True
+        await self._reading_task(self._settings, self._stopevent, self._output)
+        # if self._validargs:
+        #     await self._start_read_task(
+        #         self._settings,
+        #         self._stopevent,
+        #         self._output,
+        #     )
+        #     if mountpoint != "":
+        #         return False
+        # return True
 
-    def stop(self):
-        """
-        Close NTRIP server connection.
-        """
-
-        self._stop_read_task()
-        self._connected = False
+    # def stop(self):
+    #     """
+    #     Close NTRIP server connection.
+    #     """
+    #
+    #     self._stop_read_task()
+    #     self._connected = False
 
     def _app_update_status(self, status: bool, msg: tuple = None):
         """
@@ -237,38 +208,38 @@ class GNSSNTRIPClient:
         if hasattr(self.__app, "update_ntrip_status"):
             self.__app.update_ntrip_status(status, msg)
 
-    def _app_get_coordinates(self) -> tuple:
-        """
-        THREADED
-        Get live coordinates from receiver, or use fixed
-        reference position, depending on ggamode setting.
+    # def _app_get_coordinates(self) -> tuple:
+    #     """
+    #     THREADED
+    #     Get live coordinates from receiver, or use fixed
+    #     reference position, depending on ggamode setting.
+    #
+    #     :returns: tuple of (lat, lon, alt, sep)
+    #     :rtype: tuple
+    #     """
+    #     print("inside app_get_coordinates")
+    #
+    #     lat = lon = alt = sep = ""
+    #     if self._settings["ggamode"] == GGAFIXED:  # Fixed reference position
+    #         lat = self._settings["reflat"]
+    #         lon = self._settings["reflon"]
+    #         alt = self._settings["refalt"]
+    #         sep = self._settings["refsep"]
+    #     elif hasattr(self.__app, "get_coordinates"):  # live position from receiver
+    #         _, lat, lon, alt, sep = self.__app.get_coordinates()
+    #
+    #     return lat, lon, alt, sep
 
-        :returns: tuple of (lat, lon, alt, sep)
-        :rtype: tuple
-        """
-        print("inside app_get_coordinates")
-
-        lat = lon = alt = sep = ""
-        if self._settings["ggamode"] == GGAFIXED:  # Fixed reference position
-            lat = self._settings["reflat"]
-            lon = self._settings["reflon"]
-            alt = self._settings["refalt"]
-            sep = self._settings["refsep"]
-        elif hasattr(self.__app, "get_coordinates"):  # live position from receiver
-            _, lat, lon, alt, sep = self.__app.get_coordinates()
-
-        return lat, lon, alt, sep
-
-    def _app_notify(self):
-        """
-        THREADED
-        If calling app is tkinter, generate event
-        to notify app that data is available
-        """
-
-        if hasattr(self.__app, "appmaster"):
-            if hasattr(self.__app.appmaster, "event_generate"):
-                self.__app.appmaster.event_generate("<<ntrip_read>>")
+    # def _app_notify(self):
+    #     """
+    #     THREADED
+    #     If calling app is tkinter, generate event
+    #     to notify app that data is available
+    #     """
+    #
+    #     if hasattr(self.__app, "appmaster"):
+    #         if hasattr(self.__app.appmaster, "event_generate"):
+    #             self.__app.appmaster.event_generate("<<ntrip_read>>")
 
     @staticmethod
     def _formatGET(settings: dict) -> str:
@@ -300,57 +271,57 @@ class GNSSNTRIPClient:
         req = reqline1 + reqline2 + reqline3 + reqline4 + reqline5 + "\r\n"  # NECESSARY!!!
         return bytes(req, 'utf-8')
 
-    def _formatGGA(self) -> tuple:
-        """
-        THREADED
-        Format NMEA GGA sentence using pynmeagps. The raw string
-        output is suitable for sending to an NTRIP socket.
-
-        :return: tuple of (raw NMEA message as bytes, NMEAMessage)
-        :rtype: tuple
-        """
-        # time will default to current UTC
-
-        # try:
-
-        # lat, lon, alt, sep = self._app_get_coordinates()
-        lat = float(50.3902802)
-        lon = float(7.3161048)
-        alt = float(269.9)
-        sep = float(46.9)
-        NS = "N"
-        EW = "E"
-        if lat < 0:
-            NS = "S"
-        if lon < 0:
-            EW = "W"
-
-        parsed_data = NMEAMessage(
-            "GP",
-            "GGA",
-            GET,
-            lat=lat,
-            NS=NS,
-            lon=lon,
-            EW=EW,
-            quality=1,
-            numSV=15,
-            HDOP=0,
-            alt=alt,
-            altUnit="M",
-            sep=sep,
-            sepUnit="M",
-            diffAge="",
-            diffStation=0,
-        )
-
-        raw_data = parsed_data.serialize()
-        print(str(raw_data))
-        print(str(parsed_data))
-        return raw_data, parsed_data
-
-        # except ValueError:
-        #     return None, None
+    # def _formatGGA(self) -> tuple:
+    #     """
+    #     THREADED
+    #     Format NMEA GGA sentence using pynmeagps. The raw string
+    #     output is suitable for sending to an NTRIP socket.
+    #
+    #     :return: tuple of (raw NMEA message as bytes, NMEAMessage)
+    #     :rtype: tuple
+    #     """
+    #     # time will default to current UTC
+    #
+    #     # try:
+    #
+    #     # lat, lon, alt, sep = self._app_get_coordinates()
+    #     lat = float(50.3902802)
+    #     lon = float(7.3161048)
+    #     alt = float(269.9)
+    #     sep = float(46.9)
+    #     NS = "N"
+    #     EW = "E"
+    #     if lat < 0:
+    #         NS = "S"
+    #     if lon < 0:
+    #         EW = "W"
+    #
+    #     parsed_data = NMEAMessage(
+    #         "GP",
+    #         "GGA",
+    #         GET,
+    #         lat=lat,
+    #         NS=NS,
+    #         lon=lon,
+    #         EW=EW,
+    #         quality=1,
+    #         numSV=15,
+    #         HDOP=0,
+    #         alt=alt,
+    #         altUnit="M",
+    #         sep=sep,
+    #         sepUnit="M",
+    #         diffAge="",
+    #         diffStation=0,
+    #     )
+    #
+    #     raw_data = parsed_data.serialize()
+    #     print(str(raw_data))
+    #     print(str(parsed_data))
+    #     return raw_data, parsed_data
+    #
+    #     # except ValueError:
+    #     #     return None, None
 
     async def _send_GGA(self, ggainterval: int, output: uasyncio.StreamWriter):
         """
@@ -362,56 +333,57 @@ class GNSSNTRIPClient:
             if time.ticks_diff(self._last_gga, time.ticks_ms()) > ggainterval:
                 _logger.info("parsing gga, time interval passed")
                 print("parsing gga")
-                raw_data, parsed_data = self._formatGGA()
-                if parsed_data is not None:
+                # raw_data, parsed_data = self._formatGGA()
+                raw_data = await self._gga_queue.get()
+                if raw_data is not None:
                     _logger.info("sending gga to caster...: " + str(raw_data))
                     self._socket.sendall(raw_data)
                     await self._do_write(output, raw_data)
                 self._last_gga = time.ticks_ms()
 
-    def _get_closest_mountpoint(self):
-        """
-        THREADED
-        Find closest mountpoint in sourcetable
-        if valid reference lat/lon are available.
-        """
+    # def _get_closest_mountpoint(self):
+    #     """
+    #     THREADED
+    #     Find closest mountpoint in sourcetable
+    #     if valid reference lat/lon are available.
+    #     """
+    #
+    #     try:
+    #
+    #         lat, lon, _, _ = self._app_get_coordinates()
+    #         closest_mp, dist = find_mp_distance(
+    #             float(lat), float(lon), self._settings["sourcetable"]
+    #         )
+    #         if self._settings["mountpoint"] == "":
+    #             self._settings["mountpoint"] = closest_mp
+    #         msg = "Closest mountpoint to reference location ({}, {}) = {}, {} km".format(lat, lon, closest_mp, dist)
+    #         _logger.info(msg)
+    #
+    #     except ValueError:
+    #         pass
 
-        try:
+    # async def _start_read_task(
+    #     self,
+    #     settings: dict,
+    #     stopevent: Event,
+    #     output: uasyncio.StreamWriter,
+    # ):
+    #     """
+    #     Start the NTRIP reader task.
+    #     """
+    #
+    #     if self._connected:
+    #         self._stopevent.clear()
+    #         self._read_task = uasyncio.create_task(self._reading_task(settings, stopevent, output))
 
-            lat, lon, _, _ = self._app_get_coordinates()
-            closest_mp, dist = find_mp_distance(
-                float(lat), float(lon), self._settings["sourcetable"]
-            )
-            if self._settings["mountpoint"] == "":
-                self._settings["mountpoint"] = closest_mp
-            msg = "Closest mountpoint to reference location ({}, {}) = {}, {} km".format(lat, lon, closest_mp, dist)
-            _logger.info(msg)
-
-        except ValueError:
-            pass
-
-    async def _start_read_task(
-        self,
-        settings: dict,
-        stopevent: Event,
-        output: uasyncio.StreamWriter,
-    ):
-        """
-        Start the NTRIP reader task.
-        """
-
-        if self._connected:
-            self._stopevent.clear()
-            self._read_task = uasyncio.create_task(self._reading_task(settings, stopevent, output))
-
-    def _stop_read_task(self):
-        """
-        Stop NTRIP reader thread.
-        """
-
-        if self._read_task is not None:
-            self._stopevent.set()
-            self._read_task.cancel()
+    # def _stop_read_task(self):
+    #     """
+    #     Stop NTRIP reader thread.
+    #     """
+    #
+    #     if self._read_task is not None:
+    #         self._stopevent.set()
+    #         self._read_task.cancel()
 
     async def _reading_task(
         self,
