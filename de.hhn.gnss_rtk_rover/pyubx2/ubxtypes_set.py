@@ -1,49 +1,28 @@
 """
 UBX Protocol Input payload definitions
-
 THESE ARE THE PAYLOAD DEFINITIONS FOR _SET_ MESSAGES _TO_ THE RECEIVER
 (e.g. configuration and calibration commands; AssistNow payloads)
-
 Created on 27 Sep 2020
-
 Information sourced from u-blox Interface Specifications © 2013-2021, u-blox AG
-
 :author: semuadmin
 """
-
+import gc
+gc.collect()
 from collections import OrderedDict
-# pylint: disable=too-many-lines, line-too-long
-
+gc.collect()
 from pyubx2.ubxtypes_core import (
-    I1,
-    I2,
-    I4,
-    R4,
-    R8,
     U1,
     U2,
     U3,
     U4,
-    U5,
-    U6,
-    U7,
-    U11,
-    U12,
-    U40,
-    U64,
     X1,
-    X2,
-    X4,
-    X24,
-    SCAL1,
-    SCAL2,
-    SCAL7,
 )
+gc.collect()
 
 from pyubx2.ubxtypes_get import UBX_PAYLOADS_GET as UBX_GET
+gc.collect()
 
 UBX_PAYLOADS_SET = OrderedDict({
-    # ********************************************************************
     # Configuration Input Messages: i.e. Set Dynamic Model, Set DOP Mask, Set Baud Rate, etc..
     # Messages in the CFG class are used to configure the receiver and read out current configuration values. Any
     # messages in the CFG class sent to the receiver are either acknowledged (with message UBX-ACK-ACK) if
@@ -93,8 +72,6 @@ UBX_PAYLOADS_SET = OrderedDict({
         "reserved0": U1,
         "group": ("None", {"cfgData": U1}),  # repeating group
     }),
-
-    # ********************************************************************
     # Firmware Update Messages: i.e. Memory/Flash erase/write, Reboot, Flash identification, etc..
     # Messages in the UPD class are used to update the firmware and identify any attached flash device.
     "UPD-SOS": {
