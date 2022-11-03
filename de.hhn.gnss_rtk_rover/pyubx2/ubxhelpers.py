@@ -1,14 +1,11 @@
 """
 Collection of UBX helper methods which can be used
 outside the UBXMessage or UBXReader classes
-
 Created on 15 Dec 2020
-
 :author: semuadmin
 :copyright: SEMU Consulting © 2020
 :license: BSD 3-Clause
 """
-# pylint: disable=invalid-name
 
 import struct
 # from datetime import datetime, timedelta
@@ -17,13 +14,10 @@ import pyubx2.ubxtypes_core as ubt
 import pyubx2.ubxtypes_configdb as ubcdb
 import pyubx2.exceptions as ube
 
-
 def att2idx(att: str) -> int:
     """
     Get integer index corresponding to grouped attribute.
-
     e.g. svid_06 -> 6; gnssId_103 -> 103
-
     :param str att: grouped attribute name e.g. svid_01
     :return: index as integer, or 0 if not grouped
     :rtype: int
@@ -38,9 +32,7 @@ def att2idx(att: str) -> int:
 def att2name(att: str) -> str:
     """
     Get name of grouped attribute.
-
     e.g. svid_06 -> svid; gnssId_103 -> gnssId
-
     :param str att: grouped attribute name e.g. svid_01
     :return: name without index e.g. DF406
     :rtype: str
@@ -55,11 +47,9 @@ def att2name(att: str) -> str:
 def calc_checksum(content: bytes) -> bytes:
     """
     Calculate checksum using 8-bit Fletcher's algorithm.
-
     :param bytes content: message content, excluding header and checksum bytes
     :return: checksum
     :rtype: bytes
-
     """
 
     check_a = 0
@@ -77,13 +67,10 @@ def calc_checksum(content: bytes) -> bytes:
 def isvalid_checksum(message: bytes) -> bool:
     """
     Validate message checksum.
-
     :param bytes message: message including header and checksum bytes
     :return: checksum valid flag
     :rtype: bool
-
     """
-
     lenm = len(message)
     ckm = message[lenm - 2 : lenm]
     return ckm == calc_checksum(message[2 : lenm - 2])
@@ -92,11 +79,9 @@ def isvalid_checksum(message: bytes) -> bool:
 def atttyp(att: str) -> str:
     """
     Helper function to return attribute type as string.
-
     :param str: attribute type e.g. 'U002'
     :return: type of attribute as string e.g. 'U'
     :rtype: str
-
     """
 
     return att[0:1]
@@ -105,11 +90,9 @@ def atttyp(att: str) -> str:
 def attsiz(att: str) -> int:
     """
     Helper function to return attribute size in bytes.
-
     :param str att: attribute type e.g. 'U002'
     :return: size of attribute in bytes
     :rtype: int
-
     """
 
     return int(att[1:4])
@@ -118,11 +101,9 @@ def attsiz(att: str) -> int:
 def gpsfix2str(fix: int) -> str:
     """
     Convert GPS fix integer to descriptive string.
-
     :param int fix: GPS fix type (0-5)
     :return: GPS fix type as string
     :rtype: str
-
     """
 
     if fix == 5:
@@ -143,11 +124,9 @@ def gpsfix2str(fix: int) -> str:
 def dop2str(dop: float) -> str:
     """
     Convert Dilution of Precision float to descriptive string.
-
     :param float dop: dilution of precision as float
     :return: dilution of precision as string
     :rtype: str
-
     """
 
     if dop == 1:
@@ -169,11 +148,9 @@ def gnss2str(gnss_id: int) -> str:
     """
     Convert GNSS ID to descriptive string
     ('GPS', 'GLONASS', etc.).
-
     :param int gnss_id: GNSS identifier as integer (0-6)
     :return: GNSS identifier as string
     :rtype: str
-
     """
 
     try:
@@ -185,13 +162,11 @@ def gnss2str(gnss_id: int) -> str:
 def key_from_val(dictionary: dict, value) -> str:
     """
     Helper method - get dictionary key corresponding to (unique) value.
-
     :param dict dictionary: dictionary
     :param object value: unique dictionary value
     :return: dictionary key
     :rtype: str
     :raises: KeyError: if no key found for value
-
     """
 
     val = None
@@ -204,11 +179,8 @@ def key_from_val(dictionary: dict, value) -> str:
 def get_bits(bitfield: bytes, bitmask: int) -> int:
     """
     Get integer value of specified (masked) bit(s) in a UBX bitfield (attribute type 'X')
-
     e.g. to get value of bits 6,7 in bitfield b'\\\\x89' (binary 0b10001001)::
-
         get_bits(b'\\x89', 0b11000000) = get_bits(b'\\x89', 192) = 2
-
     :param bytes bitfield: bitfield byte(s)
     :param int bitmask: bitmask as integer (= Σ(2**n), where n is the number of the bit)
     :return: value of masked bit(s)
@@ -226,13 +198,11 @@ def get_bits(bitfield: bytes, bitmask: int) -> int:
 def val2bytes(val, att: str) -> bytes:
     """
     Convert value to bytes for given UBX attribute type.
-
     :param object val: attribute value e.g. 25
     :param str att: attribute type e.g. 'U004'
     :return: attribute value as bytes
     :rtype: bytes
     :raises: UBXTypeError
-
     """
 
     if att == ubt.CH:  # single variable-length string (e.g. INF-NOTICE)
@@ -261,7 +231,6 @@ def val2bytes(val, att: str) -> bytes:
 def bytes2val(valb: bytes, att: str) -> object:
     """
     Convert bytes to value for given UBX attribute type.
-
     :param bytes valb: attribute value in byte format e.g. b'\\\\x19\\\\x00\\\\x00\\\\x00'
     :param str att: attribute type e.g. 'U004'
     :return: attribute value as int, float, str or bytes
@@ -295,12 +264,10 @@ def bytes2val(valb: bytes, att: str) -> object:
 def nomval(att: str) -> object:
     """
     Get nominal value for given UBX attribute type.
-
     :param str att: attribute type e.g. 'U004'
     :return: attribute value as int, float, str or bytes
     :rtype: object
     :raises: UBXTypeError
-
     """
 
     if att == "CH":
@@ -321,12 +288,10 @@ def nomval(att: str) -> object:
 def msgclass2bytes(msgClass: int, msgID: int) -> bytes:
     """
     Convert message class/id integers to bytes.
-
     :param int msgClass: message class as integer e.g. 6
     :param int msgID: message ID as integer e.g. 1
     :return: message class as bytes e.g. b'/x06/x01'
     :rtype: bytes
-
     """
 
     msgClass = val2bytes(msgClass, ubt.U1)
@@ -337,13 +302,11 @@ def msgclass2bytes(msgClass: int, msgID: int) -> bytes:
 def msgstr2bytes(msgClass: str, msgID: str) -> bytes:
     """
     Convert plain text UBX message class to bytes.
-
     :param str msgClass: message class as str e.g. 'CFG'
     :param str msgID: message ID as str e.g. 'CFG-MSG'
     :return: message class as bytes e.g. b'/x06/x01'
     :rtype: bytes
     :raises: UBXMessageError
-
     """
 
     try:
@@ -360,12 +323,10 @@ def cfgname2key(name: str) -> tuple:
     """
     Return hexadecimal key and data type for given
     configuration database key name.
-
     :param str name: config key as string e.g. "CFG_NMEA_PROTVER"
     :return: tuple of (key, type)
     :rtype: tuple: (int, str)
     :raises: UBXMessageError
-
     """
     try:
         return ubcdb.UBX_CONFIG_DATABASE[name]
@@ -379,12 +340,10 @@ def cfgkey2name(keyID: int) -> tuple:
     """
     Return key name and data type for given
     configuration database hexadecimal key.
-
     :param int keyID: config key as integer e.g. 0x20930001
     :return: tuple of (keyname, type)
     :rtype: tuple: (str, str)
     :raises: UBXMessageError
-
     """
 
     try:
@@ -408,12 +367,10 @@ def cfgkey2name(keyID: int) -> tuple:
 def protocol(raw: bytes) -> int:
     """
     Gets protocol of raw message.
-
     :param bytes raw: raw (binary) message
     :return: protocol type (1 = NMEA, 2 = UBX, 4 = RTCM3, 0 = unknown)
     :rtype: int
     """
-
     p = raw[0:2]
     if p == UBX_HDR:
         return 2
@@ -423,13 +380,10 @@ def protocol(raw: bytes) -> int:
         return 4
     return 0
 
-
 def hextable(raw: bytes, cols: int = 8) -> str:
     """
     Formats raw (binary) message in tabular hexadecimal format e.g.
-
     000: 2447 4e47 5341 2c41 2c33 2c33 342c 3233 | b'$GNGSA,A,3,34,23' |
-
     :param bytes raw: raw (binary) data
     :param int cols: number of columns in hex table (8)
     :return: table of hex data
