@@ -7,7 +7,6 @@ Created on 4 Sep 2022
 """
 import gc
 gc.collect()
-
 import primitives.queue
 import uasyncio
 
