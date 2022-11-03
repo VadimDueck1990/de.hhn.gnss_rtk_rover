@@ -95,3 +95,19 @@ msg = UBXMessage(
 )
 print(msg)
 send_message(serial, serial_lock, msg)
+
+ALLOCATION TRACEBACK
+future: <Task> coro= <generator object 'run' at 200115f0>
+Traceback (most recent call last):
+  File "uasyncio/core.py", line 1, in run_until_complete
+  File "gnss/uart_reader.py", line 97, in run
+  File "gnss/uart_reader.py", line 141, in _parse_ubx
+  File "gnss/uart_reader.py", line 202, in parse
+  File "pyubx2/ubxmessage.py", line 77, in __init__
+  File "pyubx2/ubxmessage.py", line 100, in _do_attributes
+  File "pyubx2/ubxmessage.py", line 152, in _set_attribute
+  File "pyubx2/ubxmessage.py", line 204, in _set_attribute_group
+  File "pyubx2/ubxmessage.py", line 144, in _set_attribute
+  File "pyubx2/ubxmessage.py", line 303, in _set_attribute_bitfield
+  File "pyubx2/ubxmessage.py", line 354, in _set_attribute_bits
+  File "pyubx2/ubxmessage.py", line 534, in __setattr__

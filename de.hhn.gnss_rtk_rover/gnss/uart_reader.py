@@ -111,7 +111,7 @@ class UartReader:
                     await cls._cfg_resp_q.put(msg)
                     gc.collect()
                 if msg.msg_cls == b"\x01":  # NAV message
-                    _logger.info("Parsed NAV Message")
+                    _logger.info("Parsed NAV Message: ")
                     if cls._cfg_resp_q.full():
                         gc.collect()
                         continue

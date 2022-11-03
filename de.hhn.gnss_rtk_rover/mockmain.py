@@ -55,8 +55,8 @@ async def main():
     await GnssHandler.set_update_rate(1000)
     gc.collect()
     while True:
-        fixtype = await GnssHandler.get_fixtype()
-        print("fix type: ", str(fixtype))
+        navsat = await GnssHandler.get_fixtype()
+        print("navsat: ", str(navsat))
         # await uasyncio.sleep(2)
         # micropython.mem_info()
         # result = await GnssHandler.set_satellite_systems(1, 0, 0, 0)
