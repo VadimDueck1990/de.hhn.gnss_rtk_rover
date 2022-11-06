@@ -19,8 +19,8 @@ Created on 2 Oct 2020
 
 from socket import socket
 import pyrtcm.exceptions as rte
-from pynmeagps import NMEAReader
-import pynmeagps.exceptions as nme
+# from pynmeagps import NMEAReader
+# import pynmeagps.exceptions as nme
 from pyubx2.socket_stream import SocketStream
 from pyubx2.ubxmessage import UBXMessage
 from pyubx2.ubxhelpers import calc_checksum, val2bytes, bytes2val
@@ -115,26 +115,26 @@ class UBXReader:
                 byte2 = self._read_bytes(1)
                 bytehdr = byte1 + byte2
                 # if it's a UBX message (b'\xb5\x62')
-                if bytehdr == ubt.UBX_HDR:
-                    (raw_data, parsed_data) = self._parse_ubx(bytehdr)
-                    # if protocol filter passes UBX, return message,
-                    # otherwise discard and continue
-                    if self._protfilter & ubt.UBX_PROTOCOL:
-                        parsing = False
-                    else:
-                        continue
+                # if bytehdr == ubt.UBX_HDR:
+                #     (raw_data, parsed_data) = self._parse_ubx(bytehdr)
+                #     # if protocol filter passes UBX, return message,
+                #     # otherwise discard and continue
+                #     if self._protfilter & ubt.UBX_PROTOCOL:
+                #         parsing = False
+                #     else:
+                #         continue
                 # if it's an NMEA message ('$G' or '$P')
-                elif bytehdr in ubt.NMEA_HDR:
-                    (raw_data, parsed_data) = self._parse_nmea(bytehdr)
-                    # if protocol filter passes NMEA, return message,
-                    # otherwise discard and continue
-                    if self._protfilter & ubt.NMEA_PROTOCOL:
-                        parsing = False
-                    else:
-                        continue
+                # elif bytehdr in ubt.NMEA_HDR:
+                #     (raw_data, parsed_data) = self._parse_nmea(bytehdr)
+                #     # if protocol filter passes NMEA, return message,
+                #     # otherwise discard and continue
+                #     if self._protfilter & ubt.NMEA_PROTOCOL:
+                #         parsing = False
+                #     else:
+                #         continue
                 # if it's a RTCM3 message
                 # (byte1 = 0xd3; byte2 = 0b000000**)
-                elif byte1 == b"\xd3" and (byte2[0] & ~0x03) == 0:
+                if byte1 == b"\xd3" and (byte2[0] & ~0x03) == 0:
                     (raw_data, parsed_data) = self._parse_rtcm3(bytehdr)
                     # if protocol filter passes RTCM, return message,
                     # otherwise discard and continue
@@ -151,67 +151,67 @@ class UBXReader:
                     continue
 
         except EOFError:
-            return (None, None)
+            return None, None
 
         return raw_data, parsed_data
 
-    def _parse_ubx(self, hdr: bytes) -> tuple:
-        """
-        Parse remainder of UBX message.
+    # def _parse_ubx(self, hdr: bytes) -> tuple:
+    #     """
+    #     Parse remainder of UBX message.
+    #
+    #     :param bytes hdr: UBX header (b'\xb5\x62')
+    #     :return: tuple of (raw_data as bytes, parsed_data as UBXMessage or None)
+    #     :rtype: tuple
+    #     """
+    #
+    #     # read the rest of the UBX message from the buffer
+    #     byten = self._read_bytes(4)
+    #     clsid = byten[0:1]
+    #     msgid = byten[1:2]
+    #     lenb = byten[2:4]
+    #     leni = int.from_bytes(lenb, "little", signed=False)
+    #     byten = self._read_bytes(leni + 2)
+    #     plb = byten[0:leni]
+    #     cksum = byten[leni : leni + 2]
+    #     raw_data = hdr + clsid + msgid + lenb + plb + cksum
+    #     # only parse if we need to (filter passes UBX)
+    #     if self._protfilter & ubt.UBX_PROTOCOL:
+    #         parsed_data = self.parse(
+    #             raw_data,
+    #             validate=self._validate,
+    #             msgmode=self._msgmode,
+    #             parsebitfield=self._parsebf,
+    #             scaling=self._scaling,
+    #         )
+    #     else:
+    #         parsed_data = None
+    #     return (raw_data, parsed_data)
 
-        :param bytes hdr: UBX header (b'\xb5\x62')
-        :return: tuple of (raw_data as bytes, parsed_data as UBXMessage or None)
-        :rtype: tuple
-        """
-
-        # read the rest of the UBX message from the buffer
-        byten = self._read_bytes(4)
-        clsid = byten[0:1]
-        msgid = byten[1:2]
-        lenb = byten[2:4]
-        leni = int.from_bytes(lenb, "little", signed=False)
-        byten = self._read_bytes(leni + 2)
-        plb = byten[0:leni]
-        cksum = byten[leni : leni + 2]
-        raw_data = hdr + clsid + msgid + lenb + plb + cksum
-        # only parse if we need to (filter passes UBX)
-        if self._protfilter & ubt.UBX_PROTOCOL:
-            parsed_data = self.parse(
-                raw_data,
-                validate=self._validate,
-                msgmode=self._msgmode,
-                parsebitfield=self._parsebf,
-                scaling=self._scaling,
-            )
-        else:
-            parsed_data = None
-        return (raw_data, parsed_data)
-
-    def _parse_nmea(self, hdr: bytes) -> tuple:
-        """
-        Parse remainder of NMEA message (using pynmeagps library).
-
-        :param bytes hdr: NMEA header ($G or $P)
-        :return: tuple of (raw_data as bytes, parsed_data as NMEAMessage or None)
-        :rtype: tuple
-        """
-
-        # read the rest of the NMEA message from the buffer
-        byten = self._stream.readline()  # NMEA protocol is CRLF-terminated
-        if byten[-2:] != b"\x0d\x0a":
-            raise EOFError()
-        raw_data = hdr + byten
-        # only parse if we need to (filter passes NMEA)
-        if self._protfilter & ubt.NMEA_PROTOCOL:
-            # invoke pynmeagps parser
-            parsed_data = NMEAReader.parse(
-                raw_data,
-                validate=self._validate,
-                msgmode=self._msgmode,
-            )
-        else:
-            parsed_data = None
-        return raw_data, parsed_data
+    # def _parse_nmea(self, hdr: bytes) -> tuple:
+    #     """
+    #     Parse remainder of NMEA message (using pynmeagps library).
+    #
+    #     :param bytes hdr: NMEA header ($G or $P)
+    #     :return: tuple of (raw_data as bytes, parsed_data as NMEAMessage or None)
+    #     :rtype: tuple
+    #     """
+    #
+    #     # read the rest of the NMEA message from the buffer
+    #     byten = self._stream.readline()  # NMEA protocol is CRLF-terminated
+    #     if byten[-2:] != b"\x0d\x0a":
+    #         raise EOFError()
+    #     raw_data = hdr + byten
+    #     # only parse if we need to (filter passes NMEA)
+    #     if self._protfilter & ubt.NMEA_PROTOCOL:
+    #         # invoke pynmeagps parser
+    #         parsed_data = NMEAReader.parse(
+    #             raw_data,
+    #             validate=self._validate,
+    #             msgmode=self._msgmode,
+    #         )
+    #     else:
+    #         parsed_data = None
+    #     return raw_data, parsed_data
 
     def _parse_rtcm3(self, hdr: bytes, **kwargs) -> tuple:
         """
@@ -281,10 +281,10 @@ class UBXReader:
                 ube.UBXTypeError,
                 ube.UBXParseError,
                 ube.UBXStreamError,
-                nme.NMEAMessageError,
-                nme.NMEATypeError,
-                nme.NMEAParseError,
-                nme.NMEAStreamError,
+                ube.NMEAMessageError,
+                # ube.NMEATypeError,
+                # ube.NMEAParseError,
+                # ube.NMEAStreamError,
                 rte.RTCMMessageError,
                 rte.RTCMParseError,
                 rte.RTCMStreamError,
@@ -313,80 +313,80 @@ class UBXReader:
 
         return self._stream
 
-    @staticmethod
-    def parse(message: bytes, **kwargs) -> object:
-        """
-        Parse UBX byte stream to UBXMessage object.
-
-        Includes option to validate incoming payload length and checksum
-        (the UBXMessage constructor can calculate and assign its own values anyway).
-
-        :param bytes message: binary message to parse
-        :param int validate: (kwarg) validate cksum (VALCKSUM (1)=True (default), VALNONE (0)=False)
-        :param int msgmode: (kwarg) message mode (0=GET (default), 1=SET, 2=POLL)
-        :param bool parsebitfield: (kwarg) 1 = parse bitfields, 0 = leave as bytes (1)
-        :param bool scaling: (kwarg) 1 = apply scale factors, 0 = do not apply (1)
-        :return: UBXMessage object
-        :rtype: UBXMessage
-        :raises: UBXParseError (if data stream contains invalid data or unknown message type)
-
-        """
-
-        msgmode = kwargs.get("msgmode", ubt.GET)
-        validate = kwargs.get("validate", ubt.VALCKSUM)
-        parsebf = kwargs.get("parsebitfield", True)
-        scaling = kwargs.get("scaling", True)
-
-        if msgmode not in (0, 1, 2):
-            raise ube.UBXParseError(
-                f"Invalid message mode {msgmode} - must be 0, 1 or 2"
-            )
-
-        lenm = len(message)
-        hdr = message[0:2]
-        clsid = message[2:3]
-        msgid = message[3:4]
-        lenb = message[4:6]
-        if lenb == b"\x00\x00":
-            payload = None
-            leni = 0
-        else:
-            payload = message[6 : lenm - 2]
-            leni = len(payload)
-        ckm = message[lenm - 2 : lenm]
-        if payload is not None:
-            ckv = calc_checksum(clsid + msgid + lenb + payload)
-        else:
-            ckv = calc_checksum(clsid + msgid + lenb)
-        if validate & ubt.VALCKSUM:
-            if hdr != ubt.UBX_HDR:
-                raise ube.UBXParseError(
-                    "Invalid message header {} - should be {}".format(hdr, ubt.UBX_HDR)
-                )
-            if leni != bytes2val(lenb, ubt.U2):
-                raise ube.UBXParseError(
-                    (
-                        "Invalid payload length {} - should be {}".format(lenb, val2bytes(leni, ubt.U2))
-                    )
-                )
-            if ckm != ckv:
-                raise ube.UBXParseError(
-                    "Message checksum {} invalid - should be {}".format(ckm, ckv)
-                )
-        try:
-            if payload is None:
-                return UBXMessage(clsid, msgid, msgmode)
-            return UBXMessage(
-                clsid,
-                msgid,
-                msgmode,
-                payload=payload,
-                parsebitfield=parsebf,
-                scaling=scaling,
-            )
-        except KeyError as err:
-            modestr = ["GET", "SET", "POLL"][msgmode]
-            raise ube.UBXParseError(
-                f"Unknown message type clsid {clsid}, msgid {msgid}, mode {modestr}\n"
-                + "Check 'msgmode' keyword argument is appropriate for message category"
-            ) from err
+    # @staticmethod
+    # def parse(message: bytes, **kwargs) -> object:
+    #     """
+    #     Parse UBX byte stream to UBXMessage object.
+    #
+    #     Includes option to validate incoming payload length and checksum
+    #     (the UBXMessage constructor can calculate and assign its own values anyway).
+    #
+    #     :param bytes message: binary message to parse
+    #     :param int validate: (kwarg) validate cksum (VALCKSUM (1)=True (default), VALNONE (0)=False)
+    #     :param int msgmode: (kwarg) message mode (0=GET (default), 1=SET, 2=POLL)
+    #     :param bool parsebitfield: (kwarg) 1 = parse bitfields, 0 = leave as bytes (1)
+    #     :param bool scaling: (kwarg) 1 = apply scale factors, 0 = do not apply (1)
+    #     :return: UBXMessage object
+    #     :rtype: UBXMessage
+    #     :raises: UBXParseError (if data stream contains invalid data or unknown message type)
+    #
+    #     """
+    #
+    #     msgmode = kwargs.get("msgmode", ubt.GET)
+    #     validate = kwargs.get("validate", ubt.VALCKSUM)
+    #     parsebf = kwargs.get("parsebitfield", True)
+    #     scaling = kwargs.get("scaling", True)
+    #
+    #     if msgmode not in (0, 1, 2):
+    #         raise ube.UBXParseError(
+    #             f"Invalid message mode {msgmode} - must be 0, 1 or 2"
+    #         )
+    #
+    #     lenm = len(message)
+    #     hdr = message[0:2]
+    #     clsid = message[2:3]
+    #     msgid = message[3:4]
+    #     lenb = message[4:6]
+    #     if lenb == b"\x00\x00":
+    #         payload = None
+    #         leni = 0
+    #     else:
+    #         payload = message[6 : lenm - 2]
+    #         leni = len(payload)
+    #     ckm = message[lenm - 2 : lenm]
+    #     if payload is not None:
+    #         ckv = calc_checksum(clsid + msgid + lenb + payload)
+    #     else:
+    #         ckv = calc_checksum(clsid + msgid + lenb)
+    #     if validate & ubt.VALCKSUM:
+    #         if hdr != ubt.UBX_HDR:
+    #             raise ube.UBXParseError(
+    #                 "Invalid message header {} - should be {}".format(hdr, ubt.UBX_HDR)
+    #             )
+    #         if leni != bytes2val(lenb, ubt.U2):
+    #             raise ube.UBXParseError(
+    #                 (
+    #                     "Invalid payload length {} - should be {}".format(lenb, val2bytes(leni, ubt.U2))
+    #                 )
+    #             )
+    #         if ckm != ckv:
+    #             raise ube.UBXParseError(
+    #                 "Message checksum {} invalid - should be {}".format(ckm, ckv)
+    #             )
+    #     try:
+    #         if payload is None:
+    #             return UBXMessage(clsid, msgid, msgmode)
+    #         return UBXMessage(
+    #             clsid,
+    #             msgid,
+    #             msgmode,
+    #             payload=payload,
+    #             parsebitfield=parsebf,
+    #             scaling=scaling,
+    #         )
+    #     except KeyError as err:
+    #         modestr = ["GET", "SET", "POLL"][msgmode]
+    #         raise ube.UBXParseError(
+    #             f"Unknown message type clsid {clsid}, msgid {msgid}, mode {modestr}\n"
+    #             + "Check 'msgmode' keyword argument is appropriate for message category"
+    #         ) from err

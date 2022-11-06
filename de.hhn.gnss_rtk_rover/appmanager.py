@@ -15,7 +15,6 @@ import uasyncio
 from uasyncio import Event
 import utils.logging as logging
 from utils.wifimanager import WiFiManager
-from gnss.gnssntripclient import GNSSNTRIPClient
 from utils.globals import (
     WIFI_SSID,
     WIFI_PW,

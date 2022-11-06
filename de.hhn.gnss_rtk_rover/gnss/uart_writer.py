@@ -9,7 +9,10 @@ import gc
 gc.collect()
 import primitives.queue
 import uasyncio
+import utils.logging as logging
 
+_logger = logging.getLogger("uart_reader")
+_logger.setLevel(logging.WARNING)
 
 class UartWriter:
     """
@@ -42,7 +45,7 @@ class UartWriter:
         while True:
             gc.collect()
             msg = await cls._queue.get()
-            print("Sending message over UART1")
+            _logger.info("Sending message over UART1")
             cls._swriter.write(msg)
             await cls._swriter.drain()
 

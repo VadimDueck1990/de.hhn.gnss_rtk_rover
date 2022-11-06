@@ -11,6 +11,7 @@ Created on 4 Sep 2022
 :author: vdueck
 """
 import gc
+import network
 from primitives.queue import Queue
 from pyubx2.ubxmessage import UBXMessage
 from pyubx2.ubxtypes_configdb import SET_LAYER_RAM, POLL_LAYER_RAM
@@ -33,6 +34,7 @@ class GnssHandler:
     _config_key_gal = "CFG_SIGNAL_GAL_ENA"
     _config_key_glo = "CFG_SIGNAL_GLO_ENA"
     _config_key_bds = "CFG_SIGNAL_BDS_ENA"
+    _config_key_hpm = "CFG-NMEA-HIGHPREC"
     _nav_cls = "NAV"
     _cfg_cls = "CFG"
     _cfg_rate = "CFG-RATE"
@@ -229,6 +231,24 @@ class GnssHandler:
         return fixtype
 
     @classmethod
+    async def get_precision_position(cls):
+        """
+        ASYNC: Gets "NAV-HPPOSLLH" message
+
+        :return: fixtype
+        :rtype: int
+        """
+        await cls._flush_receive_qs()
+        msg = UBXMessage(
+            cls._nav_cls,
+            "NAV-HPPOSLLH",
+            GET
+        )
+        await cls._msg_q.put(msg.serialize())
+        nav = await cls._nav_msg_q.get()
+        print(str(nav))
+
+    @classmethod
     async def get_satellites_in_use(cls) -> UBXMessage:
         """
         ASYNC: Get the satellites used in navigation
@@ -249,11 +269,34 @@ class GnssHandler:
         return nav
 
     @classmethod
+    async def set_high_precision_mode(cls, enable: int) -> bool:
+        """
+        ASYNC: Enable/Disable High Precision mode
+
+        :param int enable: 0 = enable / 1 = disable
+        :return: True if successful, False if failed
+        :rtype: bool
+        """
+        await cls._flush_receive_qs()
+        layer = SET_LAYER_RAM  # volatile memory
+        transaction = 0
+        cfg_data = [(cls._config_key_hpm, enable)]
+        msg = UBXMessage.config_set(layer, transaction, cfg_data)
+        await cls._msg_q.put(msg.serialize())
+        ack = await cls._ack_nack_q.get()
+        if ack.msg_id == b'\x01':  # ACK-ACK
+            gc.collect()
+            return True
+        else:
+            gc.collect()
+            return False  # ACK-NACK
+    @classmethod
     async def set_minimum_nmea_msgs(cls):
         """
         ASYNC: Deactivate all NMEA messages on UART1, except NMEA-GGA
         """
         await cls._flush_receive_qs()
+        count = 0
         for (msgid, msgname) in UBX_MSGIDS.items():
             if msgid[0] == 0xf0:  # NMEA
                 if msgid[1] == 0x00:  # NMEA-GGA
@@ -270,8 +313,24 @@ class GnssHandler:
                     rateUSB=0,
                 )
                 await cls._msg_q.put(msgnmea.serialize())
+                count = count + 1
                 gc.collect()
+        while not cls._ack_nack_q.empty:
+            await cls._ack_nack_q.get()
+
         gc.collect()
+
+    @classmethod
+    async def run_get_precision(cls, wifi: network.WLAN):
+        """
+        ASYNC: Empty all receiving queues
+        """
+        count = 0
+        while wifi.isconnected():
+            print("LOOOOOOOOPING COUNT: " + str(count))
+            await cls.get_precision_position()
+            count = count + 1
+
 
     @classmethod
     async def _flush_receive_qs(cls):

@@ -12,7 +12,7 @@ Created on 4 Sep 2022
 """
 import gc
 import uasyncio
-
+import time
 import primitives.queue
 import utils.logging as logging
 import pyubx2.ubxtypes_core as ubt
@@ -38,12 +38,13 @@ class UartReader:
 
     @classmethod
     def initialize(cls,
-                  app: object,
-                  sreader: uasyncio.StreamReader,
-                  gga_q: primitives.queue.Queue,
-                  cfg_resp_q: primitives.queue.Queue,
-                  nav_pvt_q: primitives.queue.Queue,
-                  ack_nack_q: primitives.queue.Queue):
+                   app: object,
+                   sreader: uasyncio.StreamReader,
+                   gga_q: primitives.queue.Queue,
+                   cfg_resp_q: primitives.queue.Queue,
+                   nav_pvt_q: primitives.queue.Queue,
+                   ack_nack_q: primitives.queue.Queue,
+                   ggaevent: uasyncio.Event):
         """Initialize class variables.
 
         :param object app: The calling app
@@ -52,6 +53,7 @@ class UartReader:
         :param primitives.queue.Queue cfg_resp_q: queue for ubx responses to configuration messages
         :param primitives.queue.Queue nav_pvt_q: queue for ubx NAV-PVT get messaged
         :param primitives.queue.Queue ack_nack_q: queue for ubx ACK-NACK messages
+        :param uasyncio.Event ggaevent: event to synchronize with NTRIP client
         """
 
         cls._app = app
@@ -60,6 +62,7 @@ class UartReader:
         cls._cfg_resp_q = cfg_resp_q
         cls._nav_pvt_q = nav_pvt_q
         cls._ack_nack_q = ack_nack_q
+        cls._gga_event = ggaevent
         gc.collect()
 
     @classmethod
@@ -69,6 +72,7 @@ class UartReader:
         """
 
         while True:
+            gc.collect()
             byte1 = await cls._sreader.read(1)
             # if not UBX, NMEA or RTCM3, discard and continue
             if byte1 not in (b"\xb5", b"\x24", b"\xd3"):
@@ -79,44 +83,41 @@ class UartReader:
             if bytehdr in ubt.NMEA_HDR:
                 # read the rest of the NMEA message from the buffer
                 byten = await cls._sreader.readline()  # NMEA protocol is CRLF-terminated
+                if "GGA" not in str(byten):
+                    continue
                 raw_data = bytehdr + byten
                 # calculate checksum
                 if not cls._isvalid_cksum(raw_data):
                     _logger.warn("NMEA Sentence corrupted, invalid checksum")
-                    gc.collect()
                     continue
-                _logger.info("nmea sentence received" + str(raw_data))
+                # _logger.info("nmea sentence received" + str(raw_data))
+                # print("nmea sentence received" + str(raw_data))
                 # if the queue is full then skip. The gga consumer needs to handle messages fast enough otherwise
                 # rxBuffer will overflow
-                if cls._gga_q.full():
-                    gc.collect()
+                if cls._gga_event.is_set():
+                    await cls._gga_q.put(raw_data)
+                else:
                     continue
-                await cls._gga_q.put(raw_data)
             # if it's a UBX message (b'\xb5\x62')
             if bytehdr in ubt.UBX_HDR:
                 msg = await cls._parse_ubx(bytehdr)
                 _logger.info("ubx message received")
                 if msg.msg_cls == b"\x05":  # ACK-ACK or ACK-NACK message
                     _logger.info("parsed ACK/NACK message")
+                    print("parsed ACK/NACK message")
                     if cls._ack_nack_q.full():
-                        gc.collect()
                         continue
                     await cls._ack_nack_q.put(msg)
-                    gc.collect()
                 if msg.msg_cls == b"\x06":  # CFG message
                     _logger.info("Parsed CFG Message")
                     if cls._cfg_resp_q.full():
-                        gc.collect()
                         continue
                     await cls._cfg_resp_q.put(msg)
-                    gc.collect()
                 if msg.msg_cls == b"\x01":  # NAV message
                     _logger.info("Parsed NAV Message: ")
                     if cls._cfg_resp_q.full():
-                        gc.collect()
                         continue
                     await cls._nav_pvt_q.put(msg)
-                    gc.collect()
 
     @classmethod
     async def _parse_ubx(cls, hdr: bytes) -> UBXMessage:
@@ -141,7 +142,6 @@ class UartReader:
         parsed_data = cls.parse(
             raw_data
         )
-        gc.collect()
         return parsed_data
 
     @staticmethod
@@ -196,7 +196,6 @@ class UartReader:
                     ("Message checksum {} invalid - should be {}".format(ckm, ckv))
                 )
         try:
-            gc.collect()
             if payload is None:
                 return UBXMessage(clsid, msgid, msgmode)
             return UBXMessage(
@@ -208,7 +207,6 @@ class UartReader:
                 scaling=scaling,
             )
         except KeyError as err:
-            gc.collect()
             modestr = ["GET", "SET", "POLL"][msgmode]
             raise ube.UBXParseError(
                 """Unknown message type clsid {}, msgid {}, mode {}.\n
@@ -227,9 +225,7 @@ class UartReader:
         raw_hex = str(hex(val)).upper()
         final_hex = raw_hex[2:]
         if len(final_hex) < 2:
-            gc.collect()
             return "0" + final_hex
-        gc.collect()
         return final_hex
 
     @staticmethod
@@ -245,7 +241,6 @@ class UartReader:
         if isinstance(message, bytes):
             message = message.decode("utf-8")
         content, _ = message.strip("$\r\n").split("*", 1)
-        gc.collect()
         return content
 
     @classmethod
@@ -262,7 +257,6 @@ class UartReader:
         cksum = 0
         for sub in content:
             cksum ^= ord(sub)
-            gc.collect()
         return cls._int2hexstr(cksum)
 
     @classmethod
@@ -275,7 +269,6 @@ class UartReader:
         :rtype: bool
         """
         _, _, _, cksum = cls._get_parts(message)
-        gc.collect()
         return cksum == cls._calc_checksum(message)
 
     @staticmethod
@@ -302,8 +295,6 @@ class UartReader:
             else:  # standard
                 talker = hdr[0:2]
                 msgid = hdr[2:]
-                gc.collect()
             return talker, msgid, payload, cksum
         except Exception as err:
-            gc.collect()
             raise ube.NMEAMessageError(f"Badly formed message {message}") from err

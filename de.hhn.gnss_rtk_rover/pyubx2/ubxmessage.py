@@ -52,7 +52,6 @@ class UBXMessage:
         :param kwargs: optional payload key/value pairs
         :raises: UBXMessageError
         """
-
         # object is mutable during initialisation only
         super().__setattr__("_immutable", False)
         self._mode = msgmode
@@ -80,6 +79,7 @@ class UBXMessage:
         self._do_attributes(**kwargs)
 
         self._immutable = True  # once initialised, object is immutable
+        gc.collect()
 
     def _do_attributes(self, **kwargs):
         """
@@ -88,7 +88,6 @@ class UBXMessage:
         :param kwargs: optional payload key/value pairs
         :raises: UBXTypeError
         """
-
         offset = 0  # payload offset in bytes
         index = []  # array of (nested) group indices
 
@@ -136,7 +135,6 @@ class UBXMessage:
         :return: (offset, index[])
         :rtype: tuple
         """
-
         att = pdict[key]  # get attribute type
         if isinstance(
             att, tuple
@@ -157,7 +155,6 @@ class UBXMessage:
                 )
         else:  # single attribute
             offset = self._set_attribute_single(att, offset, key, index, **kwargs)
-
         return offset, index
 
     def _set_attribute_group(
@@ -172,7 +169,6 @@ class UBXMessage:
         :return: (offset, index[])
         :rtype: tuple
         """
-
         index.append(0)  # add a (nested) group index
         numr, attd = att  # number of repeats, attribute dictionary
         # if CFG-VALGET message, use dedicated method to
@@ -209,7 +205,6 @@ class UBXMessage:
                     )
 
         index.pop()  # remove this (nested) group index
-
         return offset, index
 
     def _set_attribute_single(
@@ -228,16 +223,14 @@ class UBXMessage:
         :return: offset
         :rtype: int
         """
-        # pylint: disable=no-member
-
         # if HP element of NAV-HPPOSLLH or NAV-HPPOSECEF message type
-        # isNavHP = self._is_navhp(key)
+        isNavHP = self._is_navhp(key)
 
         # if attribute is scaled
         scale = 1
         if isinstance(att, list) and self._scaling:
-            # if not isNavHP:  # don't scale NavHP elements at this point
-            scale = att[1]
+            if not isNavHP:  # don't scale NavHP elements at this point
+                scale = att[1]
             att = att[0]
 
         # if attribute is part of a (nested) repeating group, suffix name with index
@@ -273,6 +266,11 @@ class UBXMessage:
 
         setattr(self, keyr, val)
         offset += atts
+
+        # if HP element of NAV-HPPOSLLH or NAV-HPPOSECEF message type
+        if isNavHP:
+            self._set_attribute_navhp(key)
+
         return offset
 
     def _set_attribute_bitfield(
@@ -288,7 +286,6 @@ class UBXMessage:
         :return: (offset, index[])
         :rtype: tuple
         """
-        # pylint: disable=no-member
 
         bft, bfd = att  # type of bitfield, bitfield dictionary
         bfs = attsiz(bft)  # size of bitfield in bytes
@@ -336,7 +333,6 @@ class UBXMessage:
         :rtype: tuple
 
         """
-        # pylint: disable=no-member
 
         # if attribute is part of a (nested) repeating group, suffix name with index
         keyr = key
@@ -357,6 +353,68 @@ class UBXMessage:
         bfoffset += atts
         return bitfield, bfoffset
 
+    def _is_navhp(self, key) -> bool:
+        """
+        Check for NAV-HPPOSLLH or NAV-HPPOSECEF
+        high precision attribute type, e.g.
+        '_latHp' or '_heightHp'.
+
+        :param str key: attribute name e.g. '_latHp'
+        :return: True or False
+        :rtype: bool
+        """
+
+        return (
+            self._ubxClass == b"\x01"
+            and self._ubxID in (b"\x13", b"\x14")
+            and key
+            in (
+                "_lat",
+                "_latHp",
+                "_lon",
+                "_lonHp",
+                "_height",
+                "_heightHp",
+                "_hMSL",
+                "_hMSLHp",
+                "_ecefX",
+                "_ecefXHp",
+                "_ecefY",
+                "_ecefYHp",
+                "_ecefZ",
+                "_ecefZHp",
+            )
+        )
+
+    def _set_attribute_navhp(self, key: str):
+        """
+        Combine separate private standard and high precision
+        attributes of NAV-HPPOSLLH and NAV-HPPOSECEF message
+        types into single public attribute
+        e.g. '_lat' and '_latHp' are combined into 'lat'.
+
+        :param str key: attribute keyword
+        """
+        # pylint: disable=no-member
+
+        if key == "_latHp":
+            val = (self._lat + self._latHp * 0.01) * 1e-7
+        elif key == "_lonHp":
+            val = (self._lon + self._lonHp * 0.01) * 1e-7
+        elif key == "_heightHp":
+            val = self._height + self._heightHp * 0.1  # mm
+        elif key == "_hMSLHp":
+            val = self._hMSL + self._hMSLHp * 0.1  # mm
+        elif key == "_ecefXHp":
+            val = self._ecefX + self._ecefXHp * 0.01  # cm
+        elif key == "_ecefYHp":
+            val = self._ecefY + self._ecefYHp * 0.01  # cm
+        elif key == "_ecefZHp":
+            val = self._ecefZ + self._ecefZHp * 0.01  # cm
+        else:
+            return
+
+        setattr(self, key[1:-2], round(val, ubt.SCALROUND))
     def _set_attribute_cfgval(self, offset: int, **kwargs):
         """
         Parse CFG-VALGET payload to set of configuration
@@ -527,7 +585,6 @@ class UBXMessage:
         :param object value: attribute value
         :raises: UBXMessageError
         """
-
         if self._immutable:
             raise ube.UBXMessageError(
                 f"Object is immutable. Updates to {name} not permitted after initialisation."

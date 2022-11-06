@@ -26,7 +26,6 @@ from pyubx2.exceptions import (
     RTCMMessageError,
     RTCMTypeError,
 )
-from pynmeagps import NMEAMessage, GET
 import utils.logging as logging
 from utils.globals import (
     DEFAULT_BUFSIZE,
@@ -63,7 +62,7 @@ FIXES = {
 GGALIVE = 0
 GGAFIXED = 1
 
-_logger = logging.getLogger("app_manager")
+_logger = logging.getLogger("ntrip_client")
 
 
 class GNSSNTRIPClient:
@@ -71,24 +70,31 @@ class GNSSNTRIPClient:
     NTRIP client class.
     """
 
-    def __init__(self, rtcmoutput: UART, app: object, gga_q: primitives.queue.Queue, stopevent: uasyncio.Event):
+    def __init__(self,
+                 rtcmoutput: UART,
+                 app: object,
+                 gga_q: primitives.queue.Queue,
+                 stopevent: uasyncio.Event,
+                 ggaevent: uasyncio.Event):
         """
         Constructor.
 
         :param object app: application from which this class is invoked (None)
         :param object rtcmoutput: UART connection for rtcm data to ZED-F9P
         """
-
+        print("ntrip begin init" + str(time.ticks_ms()))
         self.__app = app  # Reference to calling application class (if applicable)
         self._ntripqueue = Queue()
         self._socket = None
         self._read_task = None
         self._connected = False
         self._stopevent = stopevent
+        self._read_gga_event = ggaevent
         self._output = uasyncio.StreamWriter(rtcmoutput)
         self._validargs = False
         self._last_gga = time.ticks_ms()
         self._gga_queue = gga_q
+        self._first_start = True
 
         # persist settings to allow any calling app to retrieve them
         self._settings = {
@@ -106,6 +112,7 @@ class GNSSNTRIPClient:
             "refalt": "",
             "refsep": "",
         }
+        print("ntrip end init" + str(time.ticks_ms()))
 
     def __enter__(self):
         """
@@ -138,6 +145,7 @@ class GNSSNTRIPClient:
         return self._connected
 
     async def run(self):
+        print("ntrip begin run " + str(time.ticks_ms()))
         """
         Open NTRIP server connection.
 
@@ -177,24 +185,11 @@ class GNSSNTRIPClient:
         self._settings["refsep"] = ""
         self._validargs = True
         self._connected = True
+        while self._stopevent.is_set():
+            await uasyncio.sleep_ms(500)
+        print("ntrip end run " + str(time.ticks_ms()))
+        _logger.info("STARTING NTRIP READING TASK")
         await self._reading_task(self._settings, self._stopevent, self._output)
-        # if self._validargs:
-        #     await self._start_read_task(
-        #         self._settings,
-        #         self._stopevent,
-        #         self._output,
-        #     )
-        #     if mountpoint != "":
-        #         return False
-        # return True
-
-    # def stop(self):
-    #     """
-    #     Close NTRIP server connection.
-    #     """
-    #
-    #     self._stop_read_task()
-    #     self._connected = False
 
     def _app_update_status(self, status: bool, msg: tuple = None):
         """
@@ -208,41 +203,8 @@ class GNSSNTRIPClient:
         if hasattr(self.__app, "update_ntrip_status"):
             self.__app.update_ntrip_status(status, msg)
 
-    # def _app_get_coordinates(self) -> tuple:
-    #     """
-    #     THREADED
-    #     Get live coordinates from receiver, or use fixed
-    #     reference position, depending on ggamode setting.
-    #
-    #     :returns: tuple of (lat, lon, alt, sep)
-    #     :rtype: tuple
-    #     """
-    #     print("inside app_get_coordinates")
-    #
-    #     lat = lon = alt = sep = ""
-    #     if self._settings["ggamode"] == GGAFIXED:  # Fixed reference position
-    #         lat = self._settings["reflat"]
-    #         lon = self._settings["reflon"]
-    #         alt = self._settings["refalt"]
-    #         sep = self._settings["refsep"]
-    #     elif hasattr(self.__app, "get_coordinates"):  # live position from receiver
-    #         _, lat, lon, alt, sep = self.__app.get_coordinates()
-    #
-    #     return lat, lon, alt, sep
-
-    # def _app_notify(self):
-    #     """
-    #     THREADED
-    #     If calling app is tkinter, generate event
-    #     to notify app that data is available
-    #     """
-    #
-    #     if hasattr(self.__app, "appmaster"):
-    #         if hasattr(self.__app.appmaster, "event_generate"):
-    #             self.__app.appmaster.event_generate("<<ntrip_read>>")
-
     @staticmethod
-    def _formatGET(settings: dict) -> str:
+    def _formatGET(settings: dict) -> bytes:
         """
         THREADED
         Format HTTP GET Request.
@@ -266,124 +228,32 @@ class GNSSNTRIPClient:
         reqline1 = f"GET {mountpoint} HTTP/1.1\r\n"
         reqline2 = f"User-Agent: {USERAGENT}\r\n"
         reqline3 = f"Host: {host}\r\n"
-        reqline4 = f"Authorization: Basic {user.decode(encoding='utf-8')}\r\n"
+        reqline4 = f"Authorization: Basic {user.decode('utf-8')}\r\n"
         reqline5 = f"Ntrip-Version: Ntrip/{version}\r\n"
         req = reqline1 + reqline2 + reqline3 + reqline4 + reqline5 + "\r\n"  # NECESSARY!!!
         return bytes(req, 'utf-8')
 
-    # def _formatGGA(self) -> tuple:
-    #     """
-    #     THREADED
-    #     Format NMEA GGA sentence using pynmeagps. The raw string
-    #     output is suitable for sending to an NTRIP socket.
-    #
-    #     :return: tuple of (raw NMEA message as bytes, NMEAMessage)
-    #     :rtype: tuple
-    #     """
-    #     # time will default to current UTC
-    #
-    #     # try:
-    #
     #     # lat, lon, alt, sep = self._app_get_coordinates()
-    #     lat = float(50.3902802)
-    #     lon = float(7.3161048)
-    #     alt = float(269.9)
-    #     sep = float(46.9)
-    #     NS = "N"
-    #     EW = "E"
-    #     if lat < 0:
-    #         NS = "S"
-    #     if lon < 0:
-    #         EW = "W"
-    #
-    #     parsed_data = NMEAMessage(
-    #         "GP",
-    #         "GGA",
-    #         GET,
-    #         lat=lat,
-    #         NS=NS,
-    #         lon=lon,
-    #         EW=EW,
-    #         quality=1,
-    #         numSV=15,
-    #         HDOP=0,
-    #         alt=alt,
-    #         altUnit="M",
-    #         sep=sep,
-    #         sepUnit="M",
-    #         diffAge="",
-    #         diffStation=0,
-    #     )
-    #
-    #     raw_data = parsed_data.serialize()
-    #     print(str(raw_data))
-    #     print(str(parsed_data))
-    #     return raw_data, parsed_data
-    #
-    #     # except ValueError:
-    #     #     return None, None
 
     async def _send_GGA(self, ggainterval: int, output: uasyncio.StreamWriter):
         """
         THREADED
         Send NMEA GGA sentence to NTRIP server at prescribed interval.
         """
-        if ggainterval != NOGGA:
-            _logger.info("inside _send_gga livegga")
-            if time.ticks_diff(self._last_gga, time.ticks_ms()) > ggainterval:
-                _logger.info("parsing gga, time interval passed")
-                print("parsing gga")
-                # raw_data, parsed_data = self._formatGGA()
-                raw_data = await self._gga_queue.get()
-                if raw_data is not None:
-                    _logger.info("sending gga to caster...: " + str(raw_data))
-                    self._socket.sendall(raw_data)
-                    await self._do_write(output, raw_data)
-                self._last_gga = time.ticks_ms()
-
-    # def _get_closest_mountpoint(self):
-    #     """
-    #     THREADED
-    #     Find closest mountpoint in sourcetable
-    #     if valid reference lat/lon are available.
-    #     """
-    #
-    #     try:
-    #
-    #         lat, lon, _, _ = self._app_get_coordinates()
-    #         closest_mp, dist = find_mp_distance(
-    #             float(lat), float(lon), self._settings["sourcetable"]
-    #         )
-    #         if self._settings["mountpoint"] == "":
-    #             self._settings["mountpoint"] = closest_mp
-    #         msg = "Closest mountpoint to reference location ({}, {}) = {}, {} km".format(lat, lon, closest_mp, dist)
-    #         _logger.info(msg)
-    #
-    #     except ValueError:
-    #         pass
-
-    # async def _start_read_task(
-    #     self,
-    #     settings: dict,
-    #     stopevent: Event,
-    #     output: uasyncio.StreamWriter,
-    # ):
-    #     """
-    #     Start the NTRIP reader task.
-    #     """
-    #
-    #     if self._connected:
-    #         self._stopevent.clear()
-    #         self._read_task = uasyncio.create_task(self._reading_task(settings, stopevent, output))
-
-    # def _stop_read_task(self):
-    #     """
-    #     Stop NTRIP reader thread.
-    #     """
-    #
-    #     if self._read_task is not None:
-    #         self._stopevent.set()
-    #         self._read_task.cancel()
+        diff = time.ticks_diff(self._last_gga, time.ticks_ms())
+        # _logger.info("difference: " + str(diff))
+        if time.ticks_diff(time.ticks_ms(), self._last_gga) > ggainterval or self._first_start:
+            # _logger.info("parsing gga, time interval passed")
+            self._read_gga_event.set()
+            raw_data = await self._gga_queue.get()
+            self._read_gga_event.clear()
+            if raw_data is not None:
+                # _logger.info("sending gga to caster...: " + str(raw_data))
+                self._socket.sendall(raw_data)
+                await self._do_write(output, raw_data)
+                print("Sending gga to caster: " + str(raw_data))
+            self._last_gga = time.ticks_ms()
+            self._first_start = False
 
     async def _reading_task(
         self,
@@ -400,94 +270,37 @@ class GNSSNTRIPClient:
         :param uasyncio.StreamWriter output: output stream for RTCM3 data
         """
 
-        try:
+        # try:
+        _logger.info("inside ntrip reading task")
+        server = settings["server"]
+        port = int(settings["port"])
+        mountpoint = settings["mountpoint"]
+        ggainterval = int(settings["ggainterval"])
 
-            server = settings["server"]
-            port = int(settings["port"])
-            mountpoint = settings["mountpoint"]
-            ggainterval = int(settings["ggainterval"])
-
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self._socket:
-                self._socket.settimeout(TIMEOUT)
-                self._socket.connect((server, port))
-                self._socket.sendall(self._formatGET(settings))
-                # send GGA sentence with request
-                if mountpoint != "":
-                    await self._send_GGA(ggainterval, output)
-                while not stopevent.is_set():
-                    rc = self._do_header(self._socket, stopevent)
-                    if rc == "0":  # streaming RTMC3 data from mountpoint
-                        _logger.info("Using mountpoint" + str(mountpoint))
-                        await self._do_data(self._socket, stopevent, ggainterval, output)
-                    elif rc == "1":  # retrieved sourcetable
-                        stopevent.set()
-                        self._connected = False
-                        self._app_update_status(False)
-                    else:  # error message
-                        stopevent.set()
-                        self._connected = False
-                        self._app_update_status(False, (f"Error!: {rc}", "red"))
-        except (
-            socket.gaierror,
-            ConnectionRefusedError,
-            ConnectionAbortedError,
-            ConnectionResetError,
-            BrokenPipeError,
-            TimeoutError,
-            OverflowError,
-        ):
-            stopevent.set()
-            self._connected = False
-
-    async def _do_header(self, sock: socket, stopevent: Event) -> str:
-        """
-        THREADED
-        Parse response header lines.
-
-        :param socket sock: socket
-        :param Event stopevent: stop event
-        :return: return status or error message
-        :rtype: str
-        """
-
-        stable = []
-        data = "Initial Header"
-
-        while data and not stopevent.is_set():
-            try:
-
-                data = sock.recv(DEFAULT_BUFSIZE)
-                header_lines = data.decode(encoding="utf-8").split("\r\n")
-                for line in header_lines:
-                    # if sourcetable request, populate list
-                    if line.find("STR;") >= 0:  # sourcetable entry
-                        strbits = line.split(";")
-                        if strbits[0] == "STR":
-                            strbits.pop(0)
-                            stable.append(strbits)
-                    elif line.find("ENDSOURCETABLE") >= 0:  # end of sourcetable
-                        self._settings["sourcetable"] = stable
-                        self._get_closest_mountpoint()
-                        _logger.info("Complete sourcetable follows...\n")
-                        for lines in self._settings["sourcetable"]:
-                            _logger.info(str(lines))
-                        return "1"
-                    elif (  # HTTP error code
-                        line.find("400 Bad Request") >= 0
-                        or line.find("401 Unauthorized") >= 0
-                        or line.find("403 Forbidden") >= 0
-                        or line.find("404 Not Found") >= 0
-                        or line.find("405 Method Not Allowed") >= 0
-                    ):
-                        _logger.error(str(line))
-                        return line
-                    elif line == "":
-                        break
-
-            except UnicodeDecodeError:
-                data = False
-
-        return "0"
+        # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self._socket:
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.settimeout(TIMEOUT)
+        addr = socket.getaddrinfo(server, port)[0][-1]
+        self._socket.connect(addr)
+        msg = self._formatGET(settings)
+        print(str(msg))
+        self._socket.sendall(msg)
+        # send GGA sentence with request
+        if mountpoint != "":
+            await self._send_GGA(ggainterval, output)
+        while not stopevent.is_set():
+            await self._do_data(self._socket, stopevent, ggainterval, output)
+        # except (
+        #     socket.gaierror,
+        #     ConnectionRefusedError,
+        #     ConnectionAbortedError,
+        #     ConnectionResetError,
+        #     BrokenPipeError,
+        #     TimeoutError,
+        #     OverflowError,
+        # ):
+        #     stopevent.set()
+        #     self._connected = False
 
     async def _do_data(
         self, sock: socket, stopevent: Event, ggainterval: int, output: uasyncio.StreamWriter
@@ -501,7 +314,7 @@ class GNSSNTRIPClient:
         :param int ggainterval: GGA transmission interval seconds
         :param uasyncio.StreamWriter output: output stream for RTCM3 messages
         """
-
+        print("ntrip begin do_data " + str(time.ticks_ms()))
         # UBXReader will wrap socket as SocketStream
         ubr = UBXReader(
             sock,
@@ -512,13 +325,15 @@ class GNSSNTRIPClient:
         )
 
         while not stopevent.is_set():
+            await uasyncio.sleep_ms(1000)
+            print("ntrip begin loop do_data " + str(time.ticks_ms()))
             try:
 
                 raw_data, parsed_data = ubr.read()
                 if raw_data is not None:
                     await self._do_write(output, raw_data)
                 await self._send_GGA(ggainterval, output)
-
+                print("ntrip end do_data " + str(time.ticks_ms()))
             except (
                 RTCMMessageError,
                 RTCMParseError,
@@ -536,7 +351,7 @@ class GNSSNTRIPClient:
         :param uasyncio.Streamwriter output: writeable output medium for RTCM3 data
         :param bytes raw: raw data
         """
-        _logger.info("writing over uart2 to ZED. Data:" + str(raw))
+        # _logger.info("writing rtcm data over uart2 to ZED: " + str(raw))
         output.write(raw)
         await output.drain()
 

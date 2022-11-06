@@ -24,6 +24,7 @@ from pyubx2.ubxtypes_core import (
     X1,
     X2,
     X4,
+    SCAL9,
     SCAL7,
     SCAL5,
     SCAL2,
@@ -167,6 +168,27 @@ UBX_PAYLOADS_GET = OrderedDict({
     # private standard and high precision attributes are
     # combined into a single public attribute in
     # accordance with interface specification
+    "NAV-HPPOSLLH": OrderedDict({
+        "version": U1,
+        "reserved0": U2,
+        "flags": (
+            X1,
+            {
+                "invalidLlh": U1,
+            },
+        ),
+        "iTOW": U4,
+        "_lon": [I4, SCAL7],
+        "_lat": [I4, SCAL7],
+        "_height": I4,  # mm
+        "_hMSL": I4,  # mm
+        "_lonHp": [I1, SCAL9],
+        "_latHp": [I1, SCAL9],
+        "_heightHp": [I1, SCAL1],  # mm
+        "_hMSLHp": [I1, SCAL1],  # mm
+        "hAcc": [U4, SCAL1],
+        "vAcc": [U4, SCAL1],
+    }),
     "NAV-PVT": OrderedDict({
         "iTOW": U4,
         "year": U2,
