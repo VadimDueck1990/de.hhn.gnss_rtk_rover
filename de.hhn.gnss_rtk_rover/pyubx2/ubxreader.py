@@ -89,7 +89,7 @@ class UBXReader:
             return raw_data, parsed_data
         raise StopIteration
 
-    def read(self) -> tuple:
+    async def read(self) -> tuple:
         """
         Read a single NMEA, UBX or RTCM3 message from the stream buffer
         and return both raw and parsed data.
@@ -108,11 +108,11 @@ class UBXReader:
             while parsing:  # loop until end of valid message or EOF
                 raw_data = None
                 parsed_data = None
-                byte1 = self._read_bytes(1)  # read the first byte
+                byte1 = await self._read_bytes(1)  # read the first byte
                 # if not UBX, NMEA or RTCM3, discard and continue
                 if byte1 not in (b"\xb5", b"\x24", b"\xd3"):
                     continue
-                byte2 = self._read_bytes(1)
+                byte2 = await self._read_bytes(1)
                 bytehdr = byte1 + byte2
                 # if it's a UBX message (b'\xb5\x62')
                 # if bytehdr == ubt.UBX_HDR:
@@ -135,7 +135,7 @@ class UBXReader:
                 # if it's a RTCM3 message
                 # (byte1 = 0xd3; byte2 = 0b000000**)
                 if byte1 == b"\xd3" and (byte2[0] & ~0x03) == 0:
-                    (raw_data, parsed_data) = self._parse_rtcm3(bytehdr)
+                    (raw_data, parsed_data) = await self._parse_rtcm3(bytehdr)
                     # if protocol filter passes RTCM, return message,
                     # otherwise discard and continue
                     if self._protfilter & ubt.RTCM3_PROTOCOL:
@@ -213,7 +213,7 @@ class UBXReader:
     #         parsed_data = None
     #     return raw_data, parsed_data
 
-    def _parse_rtcm3(self, hdr: bytes, **kwargs) -> tuple:
+    async def _parse_rtcm3(self, hdr: bytes, **kwargs) -> tuple:
         """
         Parse any RTCM3 data in the stream (using pyrtcm library).
 
@@ -223,10 +223,10 @@ class UBXReader:
         :rtype: tuple
         """
 
-        hdr3 = self._read_bytes(1)
+        hdr3 = await self._read_bytes(1)
         size = hdr3[0] | (hdr[1] << 8)
-        payload = self._read_bytes(size)
-        crc = self._read_bytes(3)
+        payload = await self._read_bytes(size)
+        crc = await self._read_bytes(3)
         raw_data = hdr + hdr3 + payload + crc
         # only parse if we need to (filter passes RTCM)
         # if self._protfilter & ubt.RTCM3_PROTOCOL:
@@ -241,7 +241,7 @@ class UBXReader:
         parsed_data = None
         return raw_data, parsed_data
 
-    def _read_bytes(self, size: int) -> bytes:
+    async def _read_bytes(self, size: int) -> bytes:
         """
         Read a specified number of bytes from stream.
 

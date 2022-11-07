@@ -19,7 +19,7 @@ from uasyncio import Event
 from machine import UART
 import time
 from primitives.queue import Queue
-import socket
+import usocket
 from pyubx2.ubxtypes_core import RTCM3_PROTOCOL, ERR_IGNORE
 from pyubx2.exceptions import (
     RTCMParseError,
@@ -86,6 +86,8 @@ class GNSSNTRIPClient:
         self.__app = app  # Reference to calling application class (if applicable)
         self._ntripqueue = Queue()
         self._socket = None
+        self._swriter = None
+        self._sreader = None
         self._read_task = None
         self._connected = False
         self._stopevent = stopevent
@@ -249,11 +251,13 @@ class GNSSNTRIPClient:
             self._read_gga_event.clear()
             if raw_data is not None:
                 # _logger.info("sending gga to caster...: " + str(raw_data))
+                await uasyncio.sleep_ms(10)
                 self._socket.sendall(raw_data)
                 await self._do_write(output, raw_data)
                 print("Sending gga to caster: " + str(raw_data))
             self._last_gga = time.ticks_ms()
             self._first_start = False
+        await uasyncio.sleep_ms(1)
 
     async def _reading_task(
         self,
@@ -278,12 +282,14 @@ class GNSSNTRIPClient:
         ggainterval = int(settings["ggainterval"])
 
         # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self._socket:
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket = usocket.socket(usocket.AF_INET, usocket.SOCK_STREAM)
         self._socket.settimeout(TIMEOUT)
-        addr = socket.getaddrinfo(server, port)[0][-1]
+        addr = usocket.getaddrinfo(server, port)[0][-1]
         self._socket.connect(addr)
         msg = self._formatGET(settings)
         print(str(msg))
+        self._swriter = uasyncio.StreamWriter(self._socket)
+        self._sreader = uasyncio
         self._socket.sendall(msg)
         # send GGA sentence with request
         if mountpoint != "":
@@ -303,7 +309,7 @@ class GNSSNTRIPClient:
         #     self._connected = False
 
     async def _do_data(
-        self, sock: socket, stopevent: Event, ggainterval: int, output: uasyncio.StreamWriter
+        self, sock: usocket, stopevent: Event, ggainterval: int, output: uasyncio.StreamWriter
     ):
         """
         ASYNC
@@ -325,15 +331,14 @@ class GNSSNTRIPClient:
         )
 
         while not stopevent.is_set():
-            await uasyncio.sleep_ms(1000)
-            print("ntrip begin loop do_data " + str(time.ticks_ms()))
             try:
-
-                raw_data, parsed_data = ubr.read()
+                print("start ubr.read: " + str(time.ticks_ms()))
+                await uasyncio.sleep_ms(10)
+                raw_data, parsed_data = await ubr.read()
+                print("end ubr.read: " + str(time.ticks_ms()))
                 if raw_data is not None:
                     await self._do_write(output, raw_data)
                 await self._send_GGA(ggainterval, output)
-                print("ntrip end do_data " + str(time.ticks_ms()))
             except (
                 RTCMMessageError,
                 RTCMParseError,
@@ -351,7 +356,7 @@ class GNSSNTRIPClient:
         :param uasyncio.Streamwriter output: writeable output medium for RTCM3 data
         :param bytes raw: raw data
         """
-        # _logger.info("writing rtcm data over uart2 to ZED: " + str(raw))
+        await uasyncio.sleep_ms(10)
         output.write(raw)
         await output.drain()
 

@@ -72,7 +72,6 @@ class UartReader:
         """
 
         while True:
-            gc.collect()
             byte1 = await cls._sreader.read(1)
             # if not UBX, NMEA or RTCM3, discard and continue
             if byte1 not in (b"\xb5", b"\x24", b"\xd3"):
@@ -86,12 +85,17 @@ class UartReader:
                 if "GGA" not in str(byten):
                     continue
                 raw_data = bytehdr + byten
-                # calculate checksum
-                if not cls._isvalid_cksum(raw_data):
-                    _logger.warn("NMEA Sentence corrupted, invalid checksum")
+                checksum_valid = False
+                try:
+                    checksum_valid = cls._isvalid_cksum(raw_data)
+                    if not checksum_valid:
+                        _logger.warn("NMEA Sentence corrupted, invalid checksum")
+                        continue
+                except Exception as err:
+                    print("Badly formed message {}".format(raw_data))
                     continue
                 # _logger.info("nmea sentence received" + str(raw_data))
-                # print("nmea sentence received" + str(raw_data))
+                print("nmea sentence received" + str(raw_data))
                 # if the queue is full then skip. The gga consumer needs to handle messages fast enough otherwise
                 # rxBuffer will overflow
                 if cls._gga_event.is_set():
@@ -297,4 +301,4 @@ class UartReader:
                 msgid = hdr[2:]
             return talker, msgid, payload, cksum
         except Exception as err:
-            raise ube.NMEAMessageError(f"Badly formed message {message}") from err
+            print("Badly formed message {}".format(message))

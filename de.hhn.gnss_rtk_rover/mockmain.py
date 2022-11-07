@@ -38,7 +38,7 @@ async def main():
     uart_rtcm.init(bits=8, parity=None, stop=1, tx=rtcmTx, rx=rtcmRx, rxbuf=4096, txbuf=4096)
 
     uart_ubx_nmea = UART(0, 115200, timeout=500)
-    uart_ubx_nmea.init(bits=8, parity=None, stop=1, tx=masterTx, rx=masterRx, rxbuf=4096, txbuf=4096)
+    uart_ubx_nmea.init(bits=8, parity=None, stop=1, tx=masterTx, rx=masterRx, rxbuf=8192, txbuf=4096)
 
     sreader = uasyncio.StreamWriter(uart_ubx_nmea)
     swriter = uasyncio.StreamReader(uart_ubx_nmea)
@@ -70,8 +70,10 @@ async def main():
 
     wifi = WiFiManager(WIFI_SSID, WIFI_PW)
     await wifi.connect()
-    await GnssHandler.set_update_rate(1000)
-    enabled = await GnssHandler.set_high_precision_mode(1)
+    await GnssHandler.set_update_rate(200)
+    systems = await GnssHandler.get_satellite_systems()
+    print("Used sat systems: " + str(systems))
+    enabled = await GnssHandler.set_high_precision_mode(0)
     print("high precision mode enabled: " + str(enabled))
     gc.collect()
 
@@ -85,10 +87,12 @@ async def main():
     ntripclient = GNSSNTRIPClient(uart_rtcm, test, gga_q, ntrip_stop_event, ggaevent)
     ntrip_stop_event.clear()
     ntriptask = uasyncio.create_task(ntripclient.run())
-    await uasyncio.create_task(GnssHandler.run_get_precision(wifi.wifi))
-    # while wifi.wifi.isconnected():
-    #     # fixtype = await GnssHandler.get_fixtype()
-    #     # print("fixtype: ", str(fixtype))
+    while wifi.wifi.isconnected():
+        print("alive")
+        # await uasyncio.sleep(1)
+        fixtype = await GnssHandler.get_fixtype()
+        print("fixtype: ", str(fixtype))
+        # await GnssHandler.get_rtcm_status()
     #     # if fixtype == 3:
     #     #     ntrip_stop_event.clear()
     #     # else:
