@@ -18,6 +18,9 @@ Created on 2 Oct 2020
 """
 
 from socket import socket
+
+import uasyncio
+
 import pyrtcm.exceptions as rte
 # from pynmeagps import NMEAReader
 # import pynmeagps.exceptions as nme
@@ -33,7 +36,7 @@ class UBXReader:
     UBXReader class.
     """
 
-    def __init__(self, datastream, **kwargs):
+    def __init__(self, datastream: uasyncio.StreamReader, **kwargs):
         """Constructor.
 
         :param datastream stream: input data stream
@@ -49,11 +52,12 @@ class UBXReader:
 
         """
 
-        bufsize = int(kwargs.get("bufsize", 4096))
-        if isinstance(datastream, socket):
-            self._stream = SocketStream(datastream, bufsize=bufsize)
-        else:
-            self._stream = datastream
+        # bufsize = int(kwargs.get("bufsize", 4096))
+        # if isinstance(datastream, socket):
+        #     self._stream = SocketStream(datastream, bufsize=bufsize)
+        # else:
+        #     self._stream = datastream
+        self._stream = datastream
         self._protfilter = int(
             kwargs.get("protfilter", ubt.NMEA_PROTOCOL | ubt.UBX_PROTOCOL)
         )
@@ -251,7 +255,7 @@ class UBXReader:
         :raises: EOFError if stream ends prematurely
         """
 
-        data = self._stream.read(size)
+        data = await self._stream.read(size)
         if len(data) < size:  # EOF
             raise EOFError()
         return data

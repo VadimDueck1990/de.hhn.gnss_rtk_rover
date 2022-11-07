@@ -187,9 +187,6 @@ class GNSSNTRIPClient:
         self._settings["refsep"] = ""
         self._validargs = True
         self._connected = True
-        while self._stopevent.is_set():
-            await uasyncio.sleep_ms(500)
-        print("ntrip end run " + str(time.ticks_ms()))
         _logger.info("STARTING NTRIP READING TASK")
         await self._reading_task(self._settings, self._stopevent, self._output)
 
@@ -251,13 +248,13 @@ class GNSSNTRIPClient:
             self._read_gga_event.clear()
             if raw_data is not None:
                 # _logger.info("sending gga to caster...: " + str(raw_data))
-                await uasyncio.sleep_ms(10)
-                self._socket.sendall(raw_data)
+                # self._socket.sendall(raw_data)
+                self._swriter.write(raw_data)
+                await self._swriter.drain()
                 await self._do_write(output, raw_data)
                 print("Sending gga to caster: " + str(raw_data))
             self._last_gga = time.ticks_ms()
             self._first_start = False
-        await uasyncio.sleep_ms(1)
 
     async def _reading_task(
         self,
@@ -289,13 +286,15 @@ class GNSSNTRIPClient:
         msg = self._formatGET(settings)
         print(str(msg))
         self._swriter = uasyncio.StreamWriter(self._socket)
-        self._sreader = uasyncio
-        self._socket.sendall(msg)
+        self._sreader = uasyncio.StreamReader(self._socket)
+        # self._socket.sendall(msg)
+        self._swriter.write(msg)
+        await self._swriter.drain()
         # send GGA sentence with request
         if mountpoint != "":
             await self._send_GGA(ggainterval, output)
         while not stopevent.is_set():
-            await self._do_data(self._socket, stopevent, ggainterval, output)
+            await self._do_data(self._sreader, stopevent, ggainterval, output)
         # except (
         #     socket.gaierror,
         #     ConnectionRefusedError,
@@ -309,7 +308,7 @@ class GNSSNTRIPClient:
         #     self._connected = False
 
     async def _do_data(
-        self, sock: usocket, stopevent: Event, ggainterval: int, output: uasyncio.StreamWriter
+        self, sock: uasyncio.StreamReader, stopevent: Event, ggainterval: int, output: uasyncio.StreamWriter
     ):
         """
         ASYNC
@@ -332,10 +331,7 @@ class GNSSNTRIPClient:
 
         while not stopevent.is_set():
             try:
-                print("start ubr.read: " + str(time.ticks_ms()))
-                await uasyncio.sleep_ms(10)
                 raw_data, parsed_data = await ubr.read()
-                print("end ubr.read: " + str(time.ticks_ms()))
                 if raw_data is not None:
                     await self._do_write(output, raw_data)
                 await self._send_GGA(ggainterval, output)
@@ -356,7 +352,6 @@ class GNSSNTRIPClient:
         :param uasyncio.Streamwriter output: writeable output medium for RTCM3 data
         :param bytes raw: raw data
         """
-        await uasyncio.sleep_ms(10)
         output.write(raw)
         await output.drain()
 
