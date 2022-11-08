@@ -10,6 +10,7 @@ from gnss.uart_writer import UartWriter
 from primitives.queue import Queue
 from gnss.uart_reader import UartReader
 from gnss.gnssntripclient import GNSSNTRIPClient
+from webapi.requesthandler import RequestHandler
 gc.collect()
 
 ntrip_stop_event = Event()
@@ -85,6 +86,7 @@ async def main():
     ntriptask = uasyncio.create_task(ntripclient.run())
     gc.collect()
     gccount = 0
+    # RequestHandler.initialize(test, pos_q)
     while wifi.wifi.isconnected():
         gccount += 1
         hacc, vacc = await GnssHandler.get_precision()
