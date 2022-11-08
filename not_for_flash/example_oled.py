@@ -8,7 +8,7 @@ Created on 10 Sep 2022
 """
 
 from machine import Pin, I2C
-from utils.ssd1306 import SSD1306_I2C
+from not_for_flash.ssd1306 import SSD1306_I2C
 import utime
 
 class Oled:

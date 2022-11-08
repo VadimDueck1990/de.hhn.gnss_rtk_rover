@@ -12,16 +12,14 @@ Created on 4 Sep 2022
 """
 import gc
 import uasyncio
-import time
+
+from collections import OrderedDict
 import primitives.queue
-import utils.logging as logging
 import pyubx2.ubxtypes_core as ubt
 import pyubx2.exceptions as ube
 from pyubx2.ubxmessage import UBXMessage
 from pyubx2.ubxhelpers import calc_checksum, bytes2val
 
-_logger = logging.getLogger("uart_reader")
-# _logger.setLevel(logging.WARNING)
 gc.collect()
 
 class UartReader:
@@ -35,6 +33,9 @@ class UartReader:
     _cfg_resp_q = None
     _nav_pvt_q = None
     _ack_nack_q = None
+    _gga_event = None
+    _position_q = None
+    _posision = None
 
     @classmethod
     def initialize(cls,
@@ -44,15 +45,17 @@ class UartReader:
                    cfg_resp_q: primitives.queue.Queue,
                    nav_pvt_q: primitives.queue.Queue,
                    ack_nack_q: primitives.queue.Queue,
-                   ggaevent: uasyncio.Event):
+                   ggaevent: uasyncio.Event,
+                   position_q: primitives.queue.Queue):
         """Initialize class variables.
 
         :param object app: The calling app
         :param uasyncio.StreamReader sreader: the serial connection to the GNSS Receiver(UART1)
-        :param primitives.queue.Queue gga_q: queue for gga messages
+        :param primitives.queue.Queue gga_q: queue for gga messages to ntrip client
         :param primitives.queue.Queue cfg_resp_q: queue for ubx responses to configuration messages
         :param primitives.queue.Queue nav_pvt_q: queue for ubx NAV-PVT get messaged
         :param primitives.queue.Queue ack_nack_q: queue for ubx ACK-NACK messages
+        :param primitives.queue.Queue position_q: main queue for position data to web api / client
         :param uasyncio.Event ggaevent: event to synchronize with NTRIP client
         """
 
@@ -63,21 +66,31 @@ class UartReader:
         cls._nav_pvt_q = nav_pvt_q
         cls._ack_nack_q = ack_nack_q
         cls._gga_event = ggaevent
-        gc.collect()
-
+        cls._position_q = position_q
+        cls._posision = OrderedDict({
+            "time": str,
+            "lat": str,
+            "lon": str,
+            "elev": str,
+            "fixType": int
+        })
     @classmethod
     async def run(cls):
         """
         ASYNC: Read incoming data from UART1 and pass it to the corresponding queue
         """
-
+        gcount = 0
         while True:
+            if gcount >= 10:
+                gc.collect()
+                gcount = 0
             byte1 = await cls._sreader.read(1)
             # if not UBX, NMEA or RTCM3, discard and continue
             if byte1 not in (b"\xb5", b"\x24", b"\xd3"):
                 continue
             byte2 = await cls._sreader.read(1)
             bytehdr = byte1 + byte2
+            gcount += 1 # count 10 message reads to trigger the garbage collector
             # if it's an NMEA message ('$G' or '$P')
             if bytehdr in ubt.NMEA_HDR:
                 # read the rest of the NMEA message from the buffer
@@ -85,19 +98,20 @@ class UartReader:
                 if "GGA" not in str(byten):
                     continue
                 raw_data = bytehdr + byten
-                checksum_valid = False
                 try:
                     checksum_valid = cls._isvalid_cksum(raw_data)
                     if not checksum_valid:
-                        _logger.warn("NMEA Sentence corrupted, invalid checksum")
+                        print("uart_reader WARN -> NMEA Sentence corrupted, invalid checksum")
                         continue
                 except Exception as err:
                     print("Badly formed message {}".format(raw_data))
                     continue
-                # _logger.info("nmea sentence received" + str(raw_data))
-                print("nmea sentence received" + str(raw_data))
+                print("uart_reader -> nmea received: " + str(raw_data))
+                cls._get_position_dict(raw_data)
                 # if the queue is full then skip. The gga consumer needs to handle messages fast enough otherwise
                 # rxBuffer will overflow
+                if cls._position_q.empty():
+                    await cls._position_q.put(cls._posision)
                 if cls._gga_event.is_set():
                     await cls._gga_q.put(raw_data)
                 else:
@@ -105,20 +119,18 @@ class UartReader:
             # if it's a UBX message (b'\xb5\x62')
             if bytehdr in ubt.UBX_HDR:
                 msg = await cls._parse_ubx(bytehdr)
-                _logger.info("ubx message received")
                 if msg.msg_cls == b"\x05":  # ACK-ACK or ACK-NACK message
-                    _logger.info("parsed ACK/NACK message")
-                    print("parsed ACK/NACK message")
+                    print("uart_reader -> parsed ACK/NACK message: " + str(msg))
                     if cls._ack_nack_q.full():
                         continue
                     await cls._ack_nack_q.put(msg)
                 if msg.msg_cls == b"\x06":  # CFG message
-                    _logger.info("Parsed CFG Message")
+                    print("uart_reader -> Parsed CFG Message")
                     if cls._cfg_resp_q.full():
                         continue
                     await cls._cfg_resp_q.put(msg)
                 if msg.msg_cls == b"\x01":  # NAV message
-                    _logger.info("Parsed NAV Message: ")
+                    print("uart_reader -> Parsed NAV Message")
                     if cls._cfg_resp_q.full():
                         continue
                     await cls._nav_pvt_q.put(msg)
@@ -300,5 +312,27 @@ class UartReader:
                 talker = hdr[0:2]
                 msgid = hdr[2:]
             return talker, msgid, payload, cksum
+        except Exception as err:
+            print("Badly formed message {}".format(message))
+
+    @classmethod
+    def _get_position_dict(cls, message: object):
+        """
+        :param object message: entire message as bytes or string
+        :return: tuple of (talker as str, msgID as str, payload as list, checksum as str)
+        :rtype: tuple
+        :raises: NMEAMessageError (if message is badly formed)
+        """
+
+        try:
+            if isinstance(message, bytes):
+                message = message.decode("utf-8")
+            content, cksum = message.strip("$\r\n").split("*", 1)
+            nmea_fields = content.split(",")
+            cls._posision["time"] = str(nmea_fields[1])
+            cls._posision["lat"] = str(nmea_fields[2])
+            cls._posision["lon"] = str(nmea_fields[4])
+            cls._posision["elev"] = str(nmea_fields[9])
+            cls._posision["fixType"] = int(nmea_fields[6])
         except Exception as err:
             print("Badly formed message {}".format(message))

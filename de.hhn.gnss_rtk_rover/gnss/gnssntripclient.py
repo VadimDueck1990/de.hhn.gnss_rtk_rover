@@ -11,6 +11,9 @@ Created on 10 Oct 2022
 
 :author: vdueck
 """
+import gc
+from utils.mem_debug import debug_gc
+debug_gc()
 import primitives.queue
 from pyubx2.ubxreader import UBXReader
 import binascii
@@ -26,10 +29,8 @@ from pyubx2.exceptions import (
     RTCMMessageError,
     RTCMTypeError,
 )
-import utils.logging as logging
 from utils.globals import (
     DEFAULT_BUFSIZE,
-    NOGGA,
     OUTPORT_NTRIP,
     NTRIP_USER,
     NTRIP_PW,
@@ -41,8 +42,6 @@ from utils.globals import (
     REF_ALT,
 )
 
-# from gnss.helpers import find_mp_distance
-
 TIMEOUT = 10
 VERSION = "0.1.0"
 USERAGENT = f"HHN BW NTRIP Client/{VERSION}"
@@ -50,19 +49,8 @@ NTRIP_HEADERS = {
     "Ntrip-Version": "Ntrip/2.0",
     "User-Agent": USERAGENT,
 }
-FIXES = {
-    "3D": 1,
-    "2D": 2,
-    "RTK FIXED": 4,
-    "RTK FLOAT": 5,
-    "RTK": 5,
-    "DR": 6,
-    "NO FIX": 0,
-}
 GGALIVE = 0
 GGAFIXED = 1
-
-_logger = logging.getLogger("ntrip_client")
 
 
 class GNSSNTRIPClient:
@@ -82,7 +70,6 @@ class GNSSNTRIPClient:
         :param object app: application from which this class is invoked (None)
         :param object rtcmoutput: UART connection for rtcm data to ZED-F9P
         """
-        print("ntrip begin init" + str(time.ticks_ms()))
         self.__app = app  # Reference to calling application class (if applicable)
         self._ntripqueue = Queue()
         self._socket = None
@@ -114,21 +101,6 @@ class GNSSNTRIPClient:
             "refalt": "",
             "refsep": "",
         }
-        print("ntrip end init" + str(time.ticks_ms()))
-
-    def __enter__(self):
-        """
-        Context manager enter routine.
-        """
-
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        """
-        Context manager exit routine.
-        """
-
-        # self.stop()
 
     @property
     def settings(self):
@@ -138,16 +110,8 @@ class GNSSNTRIPClient:
 
         return self._settings
 
-    @property
-    def connected(self):
-        """
-        Connection status getter.
-        """
-
-        return self._connected
 
     async def run(self):
-        print("ntrip begin run " + str(time.ticks_ms()))
         """
         Open NTRIP server connection.
 
@@ -187,20 +151,9 @@ class GNSSNTRIPClient:
         self._settings["refsep"] = ""
         self._validargs = True
         self._connected = True
-        _logger.info("STARTING NTRIP READING TASK")
+        print("gnssntripclient -> starting ntrip reading task")
+        gc.collect()
         await self._reading_task(self._settings, self._stopevent, self._output)
-
-    def _app_update_status(self, status: bool, msg: tuple = None):
-        """
-        THREADED
-        Update NTRIP connection status in calling application.
-
-        :param bool status: NTRIP server connection status
-        :param tuple msg: optional (message, color)
-        """
-
-        if hasattr(self.__app, "update_ntrip_status"):
-            self.__app.update_ntrip_status(status, msg)
 
     @staticmethod
     def _formatGET(settings: dict) -> bytes:
@@ -232,23 +185,16 @@ class GNSSNTRIPClient:
         req = reqline1 + reqline2 + reqline3 + reqline4 + reqline5 + "\r\n"  # NECESSARY!!!
         return bytes(req, 'utf-8')
 
-    #     # lat, lon, alt, sep = self._app_get_coordinates()
-
     async def _send_GGA(self, ggainterval: int, output: uasyncio.StreamWriter):
         """
         THREADED
         Send NMEA GGA sentence to NTRIP server at prescribed interval.
         """
-        diff = time.ticks_diff(self._last_gga, time.ticks_ms())
-        # _logger.info("difference: " + str(diff))
         if time.ticks_diff(time.ticks_ms(), self._last_gga) > ggainterval or self._first_start:
-            # _logger.info("parsing gga, time interval passed")
             self._read_gga_event.set()
             raw_data = await self._gga_queue.get()
             self._read_gga_event.clear()
             if raw_data is not None:
-                # _logger.info("sending gga to caster...: " + str(raw_data))
-                # self._socket.sendall(raw_data)
                 self._swriter.write(raw_data)
                 await self._swriter.drain()
                 await self._do_write(output, raw_data)
@@ -272,7 +218,7 @@ class GNSSNTRIPClient:
         """
 
         # try:
-        _logger.info("inside ntrip reading task")
+        print("gnssntripclient -> inside ntrip reading task")
         server = settings["server"]
         port = int(settings["port"])
         mountpoint = settings["mountpoint"]
@@ -287,7 +233,6 @@ class GNSSNTRIPClient:
         print(str(msg))
         self._swriter = uasyncio.StreamWriter(self._socket)
         self._sreader = uasyncio.StreamReader(self._socket)
-        # self._socket.sendall(msg)
         self._swriter.write(msg)
         await self._swriter.drain()
         # send GGA sentence with request
@@ -331,7 +276,7 @@ class GNSSNTRIPClient:
 
         while not stopevent.is_set():
             try:
-                raw_data, parsed_data = await ubr.read()
+                raw_data = await ubr.read()
                 if raw_data is not None:
                     await self._do_write(output, raw_data)
                 await self._send_GGA(ggainterval, output)
@@ -340,7 +285,7 @@ class GNSSNTRIPClient:
                 RTCMParseError,
                 RTCMTypeError,
             ) as err:
-                _logger.exc(err, "Error parsing rtcm stream")
+                print("gnssntripclient -> Error parsing rtcm stream")
                 continue
 
     async def _do_write(self, output: uasyncio.StreamWriter, raw: bytes):
@@ -354,6 +299,3 @@ class GNSSNTRIPClient:
         """
         output.write(raw)
         await output.drain()
-
-
-

@@ -9,10 +9,6 @@ import gc
 gc.collect()
 import primitives.queue
 import uasyncio
-import utils.logging as logging
-
-_logger = logging.getLogger("uart_reader")
-_logger.setLevel(logging.WARNING)
 
 class UartWriter:
     """
@@ -35,17 +31,15 @@ class UartWriter:
         cls._app = app
         cls._swriter = swriter
         cls._queue = queue
-        gc.collect()
 
     @classmethod
-    async def run(cls) -> bool:
+    async def run(cls):
         """
         ASYNC: Send incoming messages from queue to the GNSS receiver.
         """
         while True:
             gc.collect()
             msg = await cls._queue.get()
-            _logger.info("Sending message over UART1")
+            print("uart_writer -> Sending message over UART1")
             cls._swriter.write(msg)
             await cls._swriter.drain()
-

@@ -1,25 +1,22 @@
-import micropython
 import gc
 import uasyncio
 from machine import UART, Pin
 from uasyncio import Event
 from utils.wifimanager import WiFiManager
 from utils.globals import WIFI_SSID, WIFI_PW
+from utils.mem_debug import debug_gc
 from gnss.gnss_handler import GnssHandler
 from gnss.uart_writer import UartWriter
 from primitives.queue import Queue
 from gnss.uart_reader import UartReader
 from gnss.gnssntripclient import GNSSNTRIPClient
-
+gc.collect()
 
 ntrip_stop_event = Event()
 ggaevent = Event()
 
 
 async def main():
-    gc.collect()
-    print("start main")
-    micropython.mem_info()
     masterTx = Pin(0)
     masterRx = Pin(1)
 
@@ -31,6 +28,7 @@ async def main():
     nav_q = Queue(maxsize=5)
     ack_q = Queue(maxsize=20)
     msg_q = Queue(maxsize=5)
+    pos_q = Queue(maxsize=1)
 
     ntrip_stop_event.set()
 
@@ -53,14 +51,16 @@ async def main():
                           cfg_resp_q=cfg_q,
                           nav_pvt_q=nav_q,
                           ack_nack_q=ack_q,
-                          ggaevent=ggaevent)
+                          ggaevent=ggaevent,
+                          position_q=pos_q)
 
     GnssHandler.initialize(app=test,
                            ack_nack_q=ack_q,
                            nav_pvt_q=nav_q,
                            cfg_resp_q=cfg_q,
                            msg_q=msg_q,
-                           gga_q=gga_q)
+                           gga_q=gga_q,
+                           pos_q=pos_q)
 
     writertask = uasyncio.create_task(UartWriter.run())
     readertask = uasyncio.create_task(UartReader.run())
@@ -70,36 +70,29 @@ async def main():
 
     wifi = WiFiManager(WIFI_SSID, WIFI_PW)
     await wifi.connect()
-    await GnssHandler.set_update_rate(200)
-    systems = await GnssHandler.get_satellite_systems()
-    print("Used sat systems: " + str(systems))
-    enabled = await GnssHandler.set_high_precision_mode(0)
-    print("high precision mode enabled: " + str(enabled))
+    await GnssHandler.set_update_rate(500)
+    enabled = await GnssHandler.set_high_precision_mode(1)
+    print("main -> high precision mode enabled: " + str(enabled))
     gc.collect()
 
     fix = 0
-    while fix != 3:
+    while fix < 1:
         fix = await GnssHandler.get_fixtype()
-        print("fixtype: " + str(fix))
-        await uasyncio.sleep_ms(200)
 
-    print("Got position, starting ntrip client")
+    print("main -> got position, starting ntrip client")
     ntripclient = GNSSNTRIPClient(uart_rtcm, test, gga_q, ntrip_stop_event, ggaevent)
     ntrip_stop_event.clear()
     ntriptask = uasyncio.create_task(ntripclient.run())
+    gc.collect()
+    gccount = 0
     while wifi.wifi.isconnected():
-        print("alive")
-        # await uasyncio.sleep(1)
-        fixtype = await GnssHandler.get_fixtype()
-        print("fixtype: ", str(fixtype))
-        # await GnssHandler.get_rtcm_status()
-    #     # if fixtype == 3:
-    #     #     ntrip_stop_event.clear()
-    #     # else:
-    #     #     ntrip_stop_event.set()
-    #     await GnssHandler.get_precision_position()
-    #     # micropython.mem_info()
-    #     print("alive")
+        gccount += 1
+        hacc, vacc = await GnssHandler.get_precision()
+        print("hacc: " + str(hacc) + " vacc: " + str(vacc))
+        if gccount > 5:
+            debug_gc()
+            gccount = 0
+        await uasyncio.sleep(1)
 
 
 uasyncio.run(main())

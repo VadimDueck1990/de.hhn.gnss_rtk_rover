@@ -24,6 +24,5 @@ UBX_PAYLOADS_POLL = {
     "NAV-SIG": {},
     "NAV-STATUS": {},
     "NAV-SVIN": {},
-    "RXM-RTCM": {},
     "UPD-SOS": {},
 }

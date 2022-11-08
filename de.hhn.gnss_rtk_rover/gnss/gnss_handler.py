@@ -11,15 +11,15 @@ Created on 4 Sep 2022
 :author: vdueck
 """
 import gc
-
-import micropython
+from utils.mem_debug import debug_gc
 import network
 from primitives.queue import Queue
 from pyubx2.ubxmessage import UBXMessage
 from pyubx2.ubxtypes_configdb import SET_LAYER_RAM, POLL_LAYER_RAM
 from pyubx2.ubxtypes_core import POLL, SET, GET, UBX_MSGIDS
-
 gc.collect()
+
+
 class GnssHandler:
     """
     GnssHandler class.
@@ -30,6 +30,7 @@ class GnssHandler:
     _nav_msg_q = None
     _ack_nack_q = None
     _msg_q = None
+    _pos_q = None
 
     # predefined strings
     _config_key_gps = "CFG_SIGNAL_GPS_ENA"
@@ -53,7 +54,8 @@ class GnssHandler:
                    cfg_resp_q: Queue,
                    nav_pvt_q: Queue,
                    ack_nack_q: Queue,
-                   msg_q: Queue):
+                   msg_q: Queue,
+                   pos_q: Queue):
         """Initialization method.
         :param object app: The calling app
         :param primitives.queue.Queue gga_q: queue for incoming gga messages
@@ -68,6 +70,7 @@ class GnssHandler:
         cls._nav_msg_q = nav_pvt_q
         cls._ack_nack_q = ack_nack_q
         cls._msg_q = msg_q
+        cls._pos_q = pos_q
 
         gc.collect()
 
@@ -223,38 +226,13 @@ class GnssHandler:
         :rtype: int
         """
         await cls._flush_receive_qs()
-        msg = UBXMessage(
-            cls._nav_cls,
-            cls._nav_pvt,
-            GET
-        )
-        await cls._msg_q.put(msg.serialize())
-        nav = await cls._nav_msg_q.get()
-        fixtype = nav.__dict__["fixType"]
-        gc.collect()
-        return fixtype
-
-    @classmethod
-    async def get_precision_position(cls):
-        """
-        ASYNC: Gets "NAV-HPPOSLLH" message
-
-        :return: fixtype
-        :rtype: int
-        """
-        await cls._flush_receive_qs()
-        msg = UBXMessage(
-            cls._nav_cls,
-            "NAV-HPPOSLLH",
-            GET
-        )
-        await cls._msg_q.put(msg.serialize())
-        nav = await cls._nav_msg_q.get()
-        print(str(nav))
+        position = await cls._pos_q.get()
+        return position["fixType"]
 
     @classmethod
     async def get_satellites_in_use(cls) -> UBXMessage:
         """
+        TODO: funktioniert nicht als ubx-Abfrage, frisst den gesamten heap!!!
         ASYNC: Get the satellites used in navigation
         ATTENTION: Method does not work yet. Uses to much heap to create NAV-SAT Message!!!!!!!!
         :return: UBXMessage NAV-SAT containing satellites with details
@@ -296,47 +274,6 @@ class GnssHandler:
             return False  # ACK-NACK
 
     @classmethod
-    async def set_uart2_baudrate(cls, rate: int) -> bool:
-        """
-        ASYNC: Enable/Disable High Precision mode
-
-        :param int enable: 0 = enable / 1 = disable
-        :return: True if successful, False if failed
-        :rtype: bool
-        """
-        await cls._flush_receive_qs()
-        layer = SET_LAYER_RAM  # volatile memory
-        transaction = 0
-        cfg_data = [(cls._config_key_hpm, rate)]
-        msg = UBXMessage.config_set(layer, transaction, cfg_data)
-        await cls._msg_q.put(msg.serialize())
-        ack = await cls._ack_nack_q.get()
-        if ack.msg_id == b'\x01':  # ACK-ACK
-            gc.collect()
-            return True
-        else:
-            gc.collect()
-            return False  # ACK-NACK
-
-    @classmethod
-    async def get_rtcm_status(cls):
-        """
-        ASYNC: Gets "NAV-HPPOSLLH" message
-
-        :return: fixtype
-        :rtype: int
-        """
-        await cls._flush_receive_qs()
-        msg = UBXMessage(
-            "RXM",
-            "RXM-RTCM",
-            GET
-        )
-        await cls._msg_q.put(msg.serialize())
-        nav = await cls._nav_msg_q.get()
-        print(str(nav))
-
-    @classmethod
     async def set_minimum_nmea_msgs(cls):
         """
         ASYNC: Deactivate all NMEA messages on UART1, except NMEA-GGA
@@ -363,16 +300,7 @@ class GnssHandler:
                 gc.collect()
         while not cls._ack_nack_q.empty:
             await cls._ack_nack_q.get()
-
         gc.collect()
-
-    @classmethod
-    async def run_get_precision(cls, wifi: network.WLAN):
-        """
-        ASYNC: Empty all receiving queues
-        """
-        while wifi.isconnected():
-            await cls.get_precision_position()
 
     @classmethod
     async def _flush_receive_qs(cls):

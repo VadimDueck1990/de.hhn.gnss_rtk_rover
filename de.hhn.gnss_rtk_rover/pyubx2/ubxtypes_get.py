@@ -168,27 +168,6 @@ UBX_PAYLOADS_GET = OrderedDict({
     # private standard and high precision attributes are
     # combined into a single public attribute in
     # accordance with interface specification
-    "NAV-HPPOSLLH": OrderedDict({
-        "version": U1,
-        "reserved0": U2,
-        "flags": (
-            X1,
-            {
-                "invalidLlh": U1,
-            },
-        ),
-        "iTOW": U4,
-        "_lon": [I4, SCAL7],
-        "_lat": [I4, SCAL7],
-        "_height": I4,  # mm
-        "_hMSL": I4,  # mm
-        "_lonHp": [I1, SCAL9],
-        "_latHp": [I1, SCAL9],
-        "_heightHp": [I1, SCAL1],  # mm
-        "_hMSLHp": [I1, SCAL1],  # mm
-        "hAcc": [U4, SCAL1],
-        "vAcc": [U4, SCAL1],
-    }),
     "NAV-PVT": OrderedDict({
         "iTOW": U4,
         "year": U2,
@@ -328,22 +307,6 @@ UBX_PAYLOADS_GET = OrderedDict({
         ),
         "ttff": U4,
         "msss": U4,
-    }),
-    # Receiver Manager Messages: i.e. Satellite Status, RTC Status.
-    # Messages in the RXM class are used to output status and result data from the Receiver Manager. The output
-    # rate is not bound to the navigation/measurement rate and messages can also be generated on events.
-    "RXM-RTCM": OrderedDict({
-        "version": U1,  # 0x02
-        "flags": (
-            X1,
-            OrderedDict({
-                "crcFailed": U1,
-                "msgUsed": U2,
-            }),
-        ),
-        "subType": U2,
-        "refStation": U2,
-        "msgType": U2,
     }),
     # Firmware Update Messages: i.e. Memory/Flash erase/write, Reboot, Flash identification, etc..
     # Messages in the UPD class are used to update the firmware and identify any attached flash device.

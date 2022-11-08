@@ -11,7 +11,7 @@ from utils import logging
 UART1_TX = 0
 UART1_RX = 1
 
-# WiFi
+# # WiFi
 WIFI_SSID = "WLAN-L45XAB"
 WIFI_PW = "7334424916822832"
 # WIFI_SSID = "huawei_p30_lite"

@@ -123,10 +123,6 @@ UBX_MSGIDS = {
     b"\x01\x43": "NAV-SIG",
     b"\x01\x03": "NAV-STATUS",
     b"\x01\x3b": "NAV-SVIN",
-    b"\x01\x14": "NAV-HPPOSLLH",
-
-    # Receiver Management messages
-    b"\x02\x32": "RXM-RTCM",
 
     # Firmware update messages
     b"\x09\x14": "UPD-SOS",
