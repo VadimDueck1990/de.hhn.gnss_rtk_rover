@@ -19,18 +19,17 @@ async def printtest():
     while True:
         print("Task is working and counting: ", count)
         count += 1
-        await uasyncio.sleep_ms(250)
+        await uasyncio.sleep_ms(200)
 
 
 async def main():
     task1 = uasyncio.create_task(printtest())
-    await uasyncio.sleep(4)
     print("starting web server...")
-    RequestHandler.initialize(test, pos_q)
+    webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q))
     count2 = 0
     while True:
-        print("main task running: ")
+        print("main task running: " + str(count2))
         count2 += 1
-        await uasyncio.sleep_ms(250)
+        await uasyncio.sleep_ms(200)
 
 uasyncio.run(main())

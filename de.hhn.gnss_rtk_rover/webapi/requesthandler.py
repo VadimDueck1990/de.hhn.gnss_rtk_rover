@@ -22,7 +22,7 @@ class RequestHandler:
     _srv = None
 
     @classmethod
-    def initialize(cls, app: object,  queue: Queue):
+    async def initialize(cls, app: object,  queue: Queue):
         """Initializes the RequestHandler
         Sets the necessary queues and starts the webserver
 
@@ -33,23 +33,24 @@ class RequestHandler:
         cls._app = app
         cls._position_q = queue
 
-        _route_handlers = [("/rate", "GET", cls._getUpdateRate),
+        _route_handlers = [("/rate", "GET", _getUpdateRate),
                            ("/rate", "POST", cls._setUpdateRate)]
 
         srv = MicroWebSrv(routeHandlers=_route_handlers, webPath='/www/')
-        srv.Start()
+        await srv.Start()
 
     @classmethod
-    def _getUpdateRate(cls, http_client, http_response):
-        # rate = GnssHandler.get_update_rate()
-        response = {"updateRate": 200}
-        print(str(response))
-        http_response.WriteResponseJSONOk(response)
-
-    @classmethod
-    def _setUpdateRate(cls, http_client, http_response):
+    async def _setUpdateRate(cls, http_client, http_response):
         # rate = GnssHandler.get_update_rate()
         print("set update rate triggered")
         response = http_client.ReadRequestContentAsJSON()
         print(str(response))
-        http_response.WriteResponseOk()
+        await http_response.WriteResponseOk()
+
+
+async def _getUpdateRate(http_client, http_response):
+    # rate = GnssHandler.get_update_rate()
+    response = {"updateRate": 200}
+    print(str(response))
+    result = await http_response.WriteResponseJSONOk(response)
+    print("send response: " + str(result))

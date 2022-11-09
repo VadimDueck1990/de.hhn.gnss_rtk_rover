@@ -11,6 +11,8 @@ import  socket
 import  gc
 import  re
 
+import uasyncio
+
 try :
     from webapi.microWebTemplate import MicroWebTemplate
 except :
@@ -108,24 +110,6 @@ class MicroWebSrv :
     # ----------------------------------------------------------------------------
 
     @staticmethod
-    def _startThread(func, args=()) :
-        try :
-            start_new_thread(func, args)
-        except :
-            global _mwsrv_thread_id
-            try :
-                _mwsrv_thread_id += 1
-            except :
-                _mwsrv_thread_id = 0
-            try :
-                start_new_thread('MWSRV_THREAD_%s' % _mwsrv_thread_id, func, args)
-            except :
-                return False
-        return True
-
-    # ----------------------------------------------------------------------------
-
-    @staticmethod
     def _unquote(s) :
         r = str(s).split('%')
         try :
@@ -204,38 +188,44 @@ class MicroWebSrv :
     # ===( Server Process )=======================================================
     # ============================================================================
 
-    def _serverProcess(self) :
+    async def _serverProcess(self, sreader: uasyncio.StreamReader, swriter: uasyncio.StreamWriter) :
         self._started = True
-        while True :
-            try :
-                client, cliAddr = self._server.accept()
-                print("client: " + str(client) + " cliAddr: " + str(cliAddr))
-            except Exception as ex :
-                if ex.args and ex.args[0] == 113 :
-                    break
-                continue
-            self._client(self, client, cliAddr)
+        try:
+            while True :
+                try :
+                    cliAddr = sreader.get_extra_info("peername")
+                except Exception as ex :
+                    if ex.args and ex.args[0] == 113 :
+                        break
+                    continue
+                cli = self._client(self, sreader, swriter, cliAddr)
+                await cli.processRequest()
+        except OSError:
+            pass
         self._started = False
 
     # ============================================================================
     # ===( Functions )============================================================
     # ============================================================================
 
-    def Start(self) :
+    async def Start(self) :
         if not self._started :
-            self._server = socket.socket()
-            self._server.setsockopt( socket.SOL_SOCKET,
-                                     socket.SO_REUSEADDR,
-                                     1 )
-            self._server.bind(self._srvAddr)
-            self._server.listen(16)
-            self._serverProcess()
+            self._server = await uasyncio.start_server(self._serverProcess, self._srvAddr[0], self._srvAddr[1])
+            while True:
+                await uasyncio.sleep(100)
+            # self._server.setsockopt( socket.SOL_SOCKET,
+            #                          socket.SO_REUSEADDR,
+            #                          1 )
+            # self._server.bind(self._srvAddr)
+            # self._server.listen(16)
+            # self._serverProcess()
 
     # ----------------------------------------------------------------------------
 
-    def Stop(self) :
+    async def Stop(self) :
         if self._started :
             self._server.close()
+            await self._server.wait_closed()
 
     # ----------------------------------------------------------------------------
 
@@ -287,9 +277,9 @@ class MicroWebSrv :
     def _physPathFromURLPath(self, urlPath) :
         if urlPath == '/' :
             for idxPage in self._indexPages :
-            	physPath = self._webPath + '/' + idxPage
-            	if MicroWebSrv._fileExists(physPath) :
-            		return physPath
+                physPath = self._webPath + '/' + idxPage
+                if MicroWebSrv._fileExists(physPath) :
+                    return physPath
         else :
             physPath = self._webPath + urlPath.replace('../', '/')
             if MicroWebSrv._fileExists(physPath) :
@@ -304,10 +294,12 @@ class MicroWebSrv :
 
         # ------------------------------------------------------------------------
 
-        def __init__(self, microWebSrv, socket, addr) :
-            socket.settimeout(2)
+        def __init__(self, microWebSrv, sreader: uasyncio.StreamReader, swriter: uasyncio.StreamWriter, addr) :
+            # socket.settimeout(2)
             self._microWebSrv   = microWebSrv
-            self._socket        = socket
+            # self._socket        = socket
+            self._sreader       = sreader
+            self._swriter       = swriter
             self._addr          = addr
             self._method        = None
             self._path          = None
@@ -319,29 +311,30 @@ class MicroWebSrv :
             self._contentType   = None
             self._contentLength = 0
             
-            if hasattr(socket, 'readline'):   # MicroPython
-                self._socketfile = self._socket
-            else:   # CPython
-                self._socketfile = self._socket.makefile('rwb')
+            # if hasattr(socket, 'readline'):   # MicroPython
+            self._fileread  = self._sreader
+            self._filewrite = self._swriter
+            # else:   # CPython
+            #     self._socketfile = self._socket.makefile('rwb')
                         
-            self._processRequest()
+            # await self._processRequest()
 
         # ------------------------------------------------------------------------
 
-        def _processRequest(self) :
+        async def processRequest(self) :
             try :
                 response = MicroWebSrv._response(self)
-                if self._parseFirstLine(response) :
-                    if self._parseHeader(response) :
+                if await self._parseFirstLine(response) :
+                    if await self._parseHeader(response) :
                         upg = self._getConnUpgrade()
                         if not upg :
                             routeHandler, routeArgs = self._microWebSrv.GetRouteHandler(self._resPath, self._method)
                             if routeHandler :
                                 try :
                                     if routeArgs is not None:
-                                        routeHandler(self, response, routeArgs)
+                                        await routeHandler(self, response, routeArgs)
                                     else :
-                                        routeHandler(self, response)
+                                        await routeHandler(self, response)
                                 except Exception as ex :
                                     print('MicroWebSrv handler exception:\r\n  - In route %s %s\r\n  - %s' % (self._method, self._resPath, ex))
                                     raise ex
@@ -349,26 +342,26 @@ class MicroWebSrv :
                                 filepath = self._microWebSrv._physPathFromURLPath(self._resPath)
                                 if filepath :
                                     if MicroWebSrv._isPyHTMLFile(filepath) :
-                                        response.WriteResponsePyHTMLFile(filepath)
+                                        await response.WriteResponsePyHTMLFile(filepath)
                                     else :
                                         contentType = self._microWebSrv.GetMimeTypeFromFilename(filepath)
                                         if contentType :
                                             if self._microWebSrv.LetCacheStaticContentLevel > 0 :
                                                 if self._microWebSrv.LetCacheStaticContentLevel > 1 and \
                                                    'if-modified-since' in self._headers :
-                                                    response.WriteResponseNotModified()
+                                                    await response.WriteResponseNotModified()
                                                 else:
                                                     headers = { 'Last-Modified' : 'Fri, 1 Jan 2018 23:42:00 GMT', \
                                                                 'Cache-Control' : 'max-age=315360000' }
-                                                    response.WriteResponseFile(filepath, contentType, headers)
+                                                    await response.WriteResponseFile(filepath, contentType, headers)
                                             else :
-                                                response.WriteResponseFile(filepath, contentType)
+                                                await response.WriteResponseFile(filepath, contentType)
                                         else :
-                                            response.WriteResponseForbidden()
+                                            await response.WriteResponseForbidden()
                                 else :
-                                    response.WriteResponseNotFound()
+                                    await response.WriteResponseNotFound()
                             else :
-                                response.WriteResponseMethodNotAllowed()
+                                await response.WriteResponseMethodNotAllowed()
                         elif upg == 'websocket' and 'MicroWebSocket' in globals() \
                              and self._microWebSrv.AcceptWebSocketCallback :
                                 MicroWebSocket( socket         = self._socket,
@@ -379,23 +372,27 @@ class MicroWebSrv :
                                                 acceptCallback = self._microWebSrv.AcceptWebSocketCallback )
                                 return
                         else :
-                            response.WriteResponseNotImplemented()
+                            await response.WriteResponseNotImplemented()
                     else :
-                        response.WriteResponseBadRequest()
+                        await response.WriteResponseBadRequest()
             except :
-                response.WriteResponseInternalServerError()
+                await response.WriteResponseInternalServerError()
             try :
-                if self._socketfile is not self._socket:
-                    self._socketfile.close()
-                self._socket.close()
+                if self._fileread is not self._sreader:
+                    self._fileread.close()
+                self._sreader.close()
+                if self._filewrite is not self._swriter:
+                    self._filewrite.close()
+                self._swriter.close()
             except :
                 pass
 
         # ------------------------------------------------------------------------
 
-        def _parseFirstLine(self, response) :
+        async def _parseFirstLine(self, response) :
             try :
-                elements = self._socketfile.readline().decode().strip().split()
+                line_raw = await self._fileread.readline()
+                elements = line_raw.decode().strip().split()
                 if len(elements) == 3 :
                     self._method  = elements[0].upper()
                     self._path    = elements[1]
@@ -418,9 +415,10 @@ class MicroWebSrv :
     
         # ------------------------------------------------------------------------
 
-        def _parseHeader(self, response) :
+        async def _parseHeader(self, response) :
             while True :
-                elements = self._socketfile.readline().decode().strip().split(':', 1)
+                line_raw = await self._fileread.readline()
+                elements = line_raw.decode().strip().split(':', 1)
                 if len(elements) == 2 :
                     self._headers[elements[0].strip().lower()] = elements[1].strip()
                 elif len(elements) == 1 and len(elements[0]) == 0 :
@@ -500,21 +498,22 @@ class MicroWebSrv :
 
         # ------------------------------------------------------------------------
 
-        def ReadRequestContent(self, size=None) :
+        async def ReadRequestContent(self, size=None) :
             if size is None :
                 size = self._contentLength
             if size > 0 :
                 try :
-                    return self._socketfile.read(size)
+                    content = await self._fileread.read(size)
+                    return content
                 except :
                     pass
             return b''
 
         # ------------------------------------------------------------------------
 
-        def ReadRequestPostedFormData(self) :
+        async def ReadRequestPostedFormData(self) :
             res  = { }
-            data = self.ReadRequestContent()
+            data = await self.ReadRequestContent()
             if data :
                 elements = data.decode().split('&')
                 for s in elements :
@@ -527,7 +526,7 @@ class MicroWebSrv :
         # ------------------------------------------------------------------------
 
         def ReadRequestContentAsJSON(self) :
-            data = self.ReadRequestContent()
+            data = await self.ReadRequestContent()
             if data :
                 try :
                     return loads(data.decode())
@@ -548,81 +547,86 @@ class MicroWebSrv :
 
         # ------------------------------------------------------------------------
 
-        def _write(self, data, strEncoding='ISO-8859-1') :
+        async def _write(self, data, strEncoding='ISO-8859-1') :
             if data :
                 if type(data) == str :
                     data = data.encode(strEncoding)
                 data = memoryview(data)
-                while data :
-                    n = self._client._socketfile.write(data)
-                    if n is None :
-                        return False
-                    data = data[n:]
+                self._client._filewrite.write(data)
+                await self._client._filewrite.drain()
+                # while data :
+                #     n = self._client._socketfile.write(data)
+                #     if n is None :
+                #         return False
+                #     data = data[n:]
                 return True
             return False
 
         # ------------------------------------------------------------------------
 
-        def _writeFirstLine(self, code) :
+        async def _writeFirstLine(self, code) :
             reason = self._responseCodes.get(code, ('Unknown reason', ))[0]
-            return self._write("HTTP/1.1 %s %s\r\n" % (code, reason))
+            result = await self._write("HTTP/1.1 %s %s\r\n" % (code, reason))
+            return result
 
         # ------------------------------------------------------------------------
 
-        def _writeHeader(self, name, value) :
-            return self._write("%s: %s\r\n" % (name, value))
+        async def _writeHeader(self, name, value) :
+            result = await self._write("%s: %s\r\n" % (name, value))
+            return result
 
         # ------------------------------------------------------------------------
 
-        def _writeContentTypeHeader(self, contentType, charset=None) :
+        async def _writeContentTypeHeader(self, contentType, charset=None) :
             if contentType :
                 ct = contentType \
                    + (("; charset=%s" % charset) if charset else "")
             else :
                 ct = "application/octet-stream"
-            self._writeHeader("Content-Type", ct)
+            await self._writeHeader("Content-Type", ct)
 
         # ------------------------------------------------------------------------
 
-        def _writeServerHeader(self) :
-            self._writeHeader("Server", "MicroWebSrv by JC`zic")
+        async def _writeServerHeader(self) :
+            await self._writeHeader("Server", "MicroWebSrv by JC`zic")
 
         # ------------------------------------------------------------------------
 
-        def _writeEndHeader(self) :
-            return self._write("\r\n")
+        async def _writeEndHeader(self) :
+            result = await self._write("\r\n")
+            return result
 
         # ------------------------------------------------------------------------
 
-        def _writeBeforeContent(self, code, headers, contentType, contentCharset, contentLength) :
-            self._writeFirstLine(code)
+        async def _writeBeforeContent(self, code, headers, contentType, contentCharset, contentLength) :
+            await self._writeFirstLine(code)
             if isinstance(headers, dict) :
                 for header in headers :
-                    self._writeHeader(header, headers[header])
+                    await self._writeHeader(header, headers[header])
             if contentLength > 0 :
-                self._writeContentTypeHeader(contentType, contentCharset)
-                self._writeHeader("Content-Length", contentLength)
-            self._writeServerHeader()
-            self._writeHeader("Connection", "close")
-            self._writeEndHeader()
+                await self._writeContentTypeHeader(contentType, contentCharset)
+                await self._writeHeader("Content-Length", contentLength)
+            await self._writeServerHeader()
+            await self._writeHeader("Connection", "close")
+            await self._writeEndHeader()
 
         # ------------------------------------------------------------------------
 
-        def WriteSwitchProto(self, upgrade, headers=None) :
-            self._writeFirstLine(101)
-            self._writeHeader("Connection", "Upgrade")
-            self._writeHeader("Upgrade",    upgrade)
+        async def WriteSwitchProto(self, upgrade, headers=None) :
+            await self._writeFirstLine(101)
+            await self._writeHeader("Connection", "Upgrade")
+            await self._writeHeader("Upgrade",    upgrade)
             if isinstance(headers, dict) :
                 for header in headers :
-                    self._writeHeader(header, headers[header])
-            self._writeServerHeader()
-            self._writeEndHeader()
-            if self._client._socketfile is not self._client._socket :
-                self._client._socketfile.flush()   # CPython needs flush to continue protocol
+                    await self._writeHeader(header, headers[header])
+            await self._writeServerHeader()
+            await self._writeEndHeader()
+            # if self._client._socketfile is not self._client._socket :
+            #     self._client._socketfile.flush()   # CPython needs flush to continue protocol
 
         # ------------------------------------------------------------------------
 
-        def WriteResponse(self, code, headers, contentType, contentCharset, content) :
+        async def WriteResponse(self, code, headers, contentType, contentCharset, content) :
             try :
                 if content :
                     if type(content) == str :
@@ -630,25 +634,27 @@ class MicroWebSrv :
                     contentLength = len(content)
                 else :
                     contentLength = 0
-                self._writeBeforeContent(code, headers, contentType, contentCharset, contentLength)
+                await self._writeBeforeContent(code, headers, contentType, contentCharset, contentLength)
                 if content :
-                    return self._write(content)
+                    result = await self._write(content)
+                    return result
                 return True
             except :
                 return False
 
         # ------------------------------------------------------------------------
 
-        def WriteResponsePyHTMLFile(self, filepath, headers=None, vars=None) :
+        async def WriteResponsePyHTMLFile(self, filepath, headers=None, vars=None) :
             if 'MicroWebTemplate' in globals() :
                 with open(filepath, 'r') as file :
                     code = file.read()
                 mWebTmpl = MicroWebTemplate(code, escapeStrFunc=MicroWebSrv.HTMLEscape, filepath=filepath)
                 try :
                     tmplResult = mWebTmpl.Execute(None, vars)
-                    return self.WriteResponse(200, headers, "text/html", "UTF-8", tmplResult)
+                    result = await self.WriteResponse(200, headers, "text/html", "UTF-8", tmplResult)
+                    return result
                 except Exception as ex :
-                    return self.WriteResponse( 500,
+                    error = await self.WriteResponse( 500,
     	                                       None,
     	                                       "text/html",
     	                                       "UTF-8",
@@ -656,16 +662,18 @@ class MicroWebSrv :
     	                                            'module'  : 'PyHTML',
     	                                            'message' : str(ex)
     	                                       } )
-            return self.WriteResponseNotImplemented()
+                    return error
+            notimplemented = await self.WriteResponseNotImplemented()
+            return notimplemented
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseFile(self, filepath, contentType=None, headers=None) :
+        async def WriteResponseFile(self, filepath, contentType=None, headers=None) :
             try :
                 size = stat(filepath)[6]
                 if size > 0 :
                     with open(filepath, 'rb') as file :
-                        self._writeBeforeContent(200, headers, contentType, None, size)
+                        await self._writeBeforeContent(200, headers, contentType, None, size)
                         try :
                             buf = bytearray(1024)
                             while size > 0 :
@@ -677,42 +685,44 @@ class MicroWebSrv :
                                 size -= x
                             return True
                         except :
-                            self.WriteResponseInternalServerError()
+                            await self.WriteResponseInternalServerError()
                             return False
             except :
                 pass
-            self.WriteResponseNotFound()
+            await self.WriteResponseNotFound()
             return False
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseFileAttachment(self, filepath, attachmentName, headers=None) :
+        async def WriteResponseFileAttachment(self, filepath, attachmentName, headers=None) :
             if not isinstance(headers, dict) :
                 headers = { }
             headers["Content-Disposition"] = "attachment; filename=\"%s\"" % attachmentName
-            return self.WriteResponseFile(filepath, None, headers)
+            result = await self.WriteResponseFile(filepath, None, headers)
+            return result
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseOk(self, headers=None, contentType=None, contentCharset=None, content=None) :
-            return self.WriteResponse(200, headers, contentType, contentCharset, content)
+        async def WriteResponseOk(self, headers=None, contentType=None, contentCharset=None, content=None) :
+            result = await self.WriteResponse(200, headers, contentType, contentCharset, content)
+            return result
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseJSONOk(self, obj=None, headers=None) :
-            return self.WriteResponse(200, headers, "application/json", "UTF-8", dumps(obj))
+        async def WriteResponseJSONOk(self, obj=None, headers=None) :
+            return await self.WriteResponse(200, headers, "application/json", "UTF-8", dumps(obj))
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseRedirect(self, location) :
+        async def WriteResponseRedirect(self, location) :
             headers = { "Location" : location }
-            return self.WriteResponse(302, headers, None, None, None)
+            return await self.WriteResponse(302, headers, None, None, None)
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseError(self, code) :
+        async def WriteResponseError(self, code) :
             responseCode = self._responseCodes.get(code, ('Unknown reason', ''))
-            return self.WriteResponse( code,
+            return await self.WriteResponse( code,
                                        None,
                                        "text/html",
                                        "UTF-8",
@@ -724,8 +734,8 @@ class MicroWebSrv :
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseJSONError(self, code, obj=None) :
-            return self.WriteResponse( code,
+        async def WriteResponseJSONError(self, code, obj=None) :
+            return await self.WriteResponse( code,
                                        None,
                                        "application/json",
                                        "UTF-8",
@@ -733,41 +743,41 @@ class MicroWebSrv :
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseNotModified(self) :
-            return self.WriteResponseError(304)
+        async def WriteResponseNotModified(self) :
+            return await self.WriteResponseError(304)
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseBadRequest(self) :
-            return self.WriteResponseError(400)
+        async def WriteResponseBadRequest(self) :
+            return await self.WriteResponseError(400)
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseForbidden(self) :
-            return self.WriteResponseError(403)
+        async def WriteResponseForbidden(self) :
+            return await self.WriteResponseError(403)
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseNotFound(self) :
+        async def WriteResponseNotFound(self) :
             if self._client._microWebSrv._notFoundUrl :
-                self.WriteResponseRedirect(self._client._microWebSrv._notFoundUrl)
+                await self.WriteResponseRedirect(self._client._microWebSrv._notFoundUrl)
             else :
-                return self.WriteResponseError(404)
+                return await self.WriteResponseError(404)
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseMethodNotAllowed(self) :
-            return self.WriteResponseError(405)
+        async def WriteResponseMethodNotAllowed(self) :
+            return await self.WriteResponseError(405)
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseInternalServerError(self) :
-            return self.WriteResponseError(500)
+        async def WriteResponseInternalServerError(self) :
+            return await self.WriteResponseError(500)
 
         # ------------------------------------------------------------------------
 
-        def WriteResponseNotImplemented(self) :
-            return self.WriteResponseError(501)
+        async def WriteResponseNotImplemented(self) :
+            return await self.WriteResponseError(501)
 
         # ------------------------------------------------------------------------
 
