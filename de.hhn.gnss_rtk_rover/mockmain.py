@@ -13,11 +13,10 @@ from gnss.gnssntripclient import GNSSNTRIPClient
 from webapi.requesthandler import RequestHandler
 gc.collect()
 
-ntrip_stop_event = Event()
-ggaevent = Event()
-
-
 async def main():
+    ntrip_stop_event = Event()
+    ggaevent = Event()
+
     masterTx = Pin(0)
     masterRx = Pin(1)
 
@@ -33,8 +32,6 @@ async def main():
     ack_q = Queue(maxsize=20)
     msg_q = Queue(maxsize=5)
     pos_q = Queue(maxsize=1)
-
-    ntrip_stop_event.set()
 
     uart_rtcm = UART(1, 38400, timeout=500)
     uart_rtcm.init(bits=8, parity=None, stop=1, tx=rtcmTx, rx=rtcmRx, rxbuf=4096, txbuf=4096)
@@ -64,14 +61,14 @@ async def main():
                            cfg_resp_q=cfg_q,
                            msg_q=msg_q,
                            gga_q=gga_q,
-                           pos_q=pos_q)
+                           pos_q=pos_q,
+                           ntrip_lock=rtcm_lock,
+                           stop_event=ntrip_stop_event)
 
     writertask = uasyncio.create_task(UartWriter.run())
     readertask = uasyncio.create_task(UartReader.run())
 
     await GnssHandler.set_minimum_nmea_msgs()
-    await uasyncio.sleep(5)
-
     wifi = WiFiManager(WIFI_SSID, WIFI_PW)
     await wifi.connect()
     await GnssHandler.set_update_rate(2000)
@@ -79,26 +76,15 @@ async def main():
     print("main -> high precision mode enabled: " + str(enabled))
     gc.collect()
 
-    fix = 0
-    while fix < 1:
-        fix = await GnssHandler.get_fixtype()
-
-    print("main -> got position, starting ntrip client")
-    ntripclient = GNSSNTRIPClient(uart_rtcm, test, gga_q, ntrip_stop_event, ggaevent)
-    ntrip_stop_event.clear()
-    ntriptask = uasyncio.create_task(ntripclient.run(rtcm_lock))
+    ntripclient = GNSSNTRIPClient(uart_rtcm, test, gga_q, ggaevent)
+    ntriptask = uasyncio.create_task(ntripclient.run(rtcm_lock, ntrip_stop_event))
     gc.collect()
     gccount = 0
-    webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q))
-    async with rtcm_lock:
-        print("rtcm enabled: " + str(GnssHandler.rtcm_enabled))
+    webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q, ntrip_stop_event))
     while wifi.wifi.isconnected():
         gccount += 1
-        # hacc, vacc = await GnssHandler.get_precision()
-        # print("hacc: " + str(hacc) + " vacc: " + str(vacc))
-        # if gccount > 5:
-        #     debug_gc()
-        #     gccount = 0
+        async with rtcm_lock:
+            print("rtcm enabled: " + str(GnssHandler.rtcm_enabled))
         await uasyncio.sleep(1)
 
 

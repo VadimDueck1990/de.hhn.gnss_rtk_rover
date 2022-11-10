@@ -63,7 +63,6 @@ class GNSSNTRIPClient:
                  rtcmoutput: UART,
                  app: object,
                  gga_q: primitives.queue.Queue,
-                 stopevent: uasyncio.Event,
                  ggaevent: uasyncio.Event):
         """
         Constructor.
@@ -77,7 +76,6 @@ class GNSSNTRIPClient:
         self._swriter = None
         self._sreader = None
         self._task = None
-        self._stopevent = stopevent
         self._read_gga_event = ggaevent
         self._output = uasyncio.StreamWriter(rtcmoutput)
         self._last_gga = time.ticks_ms()
@@ -109,7 +107,7 @@ class GNSSNTRIPClient:
         return self._settings
 
 
-    async def run(self, ntrip_lock: uasyncio.Lock):
+    async def run(self, ntrip_lock: uasyncio.Lock, stopevent: uasyncio.Event):
         """
         Open NTRIP server connection.
         Opens socket to NTRIP server and reads incoming data.
@@ -135,44 +133,60 @@ class GNSSNTRIPClient:
         self._settings["ggainterval"] = int(GGA_INTERVAL * 1000)
         print("gnssntripclient -> starting ntrip reading task")
 
-        try:
-            server = self._settings["server"]
-            port = int(self._settings["port"])
-            mountpoint = self._settings["mountpoint"]
-            ggainterval = int(self._settings["ggainterval"])
+        stopevent.set()
+        server = self._settings["server"]
+        port = int(self._settings["port"])
+        mountpoint = self._settings["mountpoint"]
+        ggainterval = int(self._settings["ggainterval"])
 
-            self._socket = usocket.socket(usocket.AF_INET, usocket.SOCK_STREAM)
-            self._socket.settimeout(TIMEOUT)
-            addr = usocket.getaddrinfo(server, port)[0][-1]
-            self._socket.connect(addr)
-            msg = self._formatGET(self._settings)
-            print(str(msg))
-            self._swriter = uasyncio.StreamWriter(self._socket)
-            self._sreader = uasyncio.StreamReader(self._socket)
-            self._swriter.write(msg)
-            await self._swriter.drain()
+        while True:
+            print("initializing socket connection, stopevent: " + str(stopevent.is_set()))
+            if not stopevent.is_set():
+                try:
+                    self._socket = usocket.socket(usocket.AF_INET, usocket.SOCK_STREAM)
+                    self._socket.settimeout(TIMEOUT)
+                    addr = usocket.getaddrinfo(server, port)[0][-1]
+                    self._socket.connect(addr)
+                    msg = self._formatGET(self._settings)
+                    print(str(msg))
+                    self._swriter = uasyncio.StreamWriter(self._socket)
+                    self._sreader = uasyncio.StreamReader(self._socket)
+                    self._swriter.write(msg)
+                    await self._swriter.drain()
+                    async with ntrip_lock:
+                        GnssHandler.rtcm_enabled = True
+                    if mountpoint != "":
+                        await self._send_GGA(ggainterval, self._output)
 
-            async with ntrip_lock:
-                GnssHandler.rtcm_enabled = True
+                    while True:
+                        if not stopevent.is_set():
+                            try:
+                                await self._do_data(self._sreader, stopevent, ggainterval, self._output, ntrip_lock)
+                            except Exception as ex:
+                                print(Exception)
+                                stopevent.set()
+                                await self._swriter.wait_closed()
+                                await self._sreader.wait_closed()
+                                async with ntrip_lock:
+                                    GnssHandler.rtcm_enabled = False
+                                break
+                        else:
+                            await uasyncio.sleep(1)
+                            async with ntrip_lock:
+                                GnssHandler.rtcm_enabled = False
+                except Exception as ex:
+                    print(Exception)
+                    stopevent.set()
+                    await self._swriter.wait_closed()
+                    await self._sreader.wait_closed()
+                    async with ntrip_lock:
+                        GnssHandler.rtcm_enabled = False
+                    break
+            else:
+                await uasyncio.sleep(1)
+                async with ntrip_lock:
+                    GnssHandler.rtcm_enabled = False
 
-            # send GGA sentence with request
-            if mountpoint != "":
-                await self._send_GGA(ggainterval, self._output)
-            while not self._stopevent.is_set():
-                await self._do_data(self._sreader, self._stopevent, ggainterval, self._output)
-        except uasyncio.CancelledError:
-            self._stopevent.set()
-            await self._swriter.wait_closed()
-            await self._sreader.wait_closed()
-            async with ntrip_lock:
-                GnssHandler.rtcm_enabled = False
-        except Exception as ex:
-            print(Exception)
-            self._stopevent.set()
-            await self._swriter.wait_closed()
-            await self._sreader.wait_closed()
-            async with ntrip_lock:
-                GnssHandler.rtcm_enabled = False
 
 
 
@@ -224,9 +238,12 @@ class GNSSNTRIPClient:
             self._last_gga = time.ticks_ms()
             self._first_start = False
 
-    async def _do_data(
-        self, sock: uasyncio.StreamReader, stopevent: Event, ggainterval: int, output: uasyncio.StreamWriter
-    ):
+    async def _do_data(self,
+                       sock: uasyncio.StreamReader,
+                       stopevent: Event,
+                       ggainterval: int,
+                       output: uasyncio.StreamWriter,
+                       ntrip_lock: uasyncio.Lock):
         """
         ASYNC
         Read and parse incoming NTRIP RTCM3 data stream.
@@ -246,6 +263,8 @@ class GNSSNTRIPClient:
             labelmsm=True,
         )
         raw_data = None
+        async with ntrip_lock:
+            GnssHandler.rtcm_enabled = True
         while not stopevent.is_set():
             try:
                 raw_data = await ubr.read()
@@ -269,6 +288,5 @@ class GNSSNTRIPClient:
         :param uasyncio.Streamwriter output: writeable output medium for RTCM3 data
         :param bytes raw: raw data
         """
-        # print(raw)
         output.write(raw)
         await output.drain()

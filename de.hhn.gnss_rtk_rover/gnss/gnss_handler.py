@@ -11,6 +11,9 @@ Created on 4 Sep 2022
 :author: vdueck
 """
 import gc
+
+import uasyncio
+
 from utils.mem_debug import debug_gc
 import network
 from primitives.queue import Queue
@@ -32,6 +35,8 @@ class GnssHandler:
     _msg_q = None
     _pos_q = None
     rtcm_enabled = None
+    ntrip_lock = None
+    ntrip_stop_event = None
 
     # predefined strings
     _config_key_gps = "CFG_SIGNAL_GPS_ENA"
@@ -56,7 +61,9 @@ class GnssHandler:
                    nav_pvt_q: Queue,
                    ack_nack_q: Queue,
                    msg_q: Queue,
-                   pos_q: Queue):
+                   pos_q: Queue,
+                   ntrip_lock: uasyncio.Lock,
+                   stop_event: uasyncio.Event):
         """Initialization method.
         :param object app: The calling app
         :param primitives.queue.Queue gga_q: queue for incoming gga messages
@@ -64,6 +71,9 @@ class GnssHandler:
         :param primitives.queue.Queue nav_pvt_q: queue for incoming ubx NAV-PVT get messaged
         :param primitives.queue.Queue ack_nack_q: queue for incoming ubx ACK-NACK messages
         :param primitives.queue.Queue msg_q: queue for outgoing ubx messages
+        :param primitives.queue.Queue pos_q: queue for the main position data
+        :param uasyncio.Lock ntrip_lock: lock for reading the rtcm_enabled flag
+        :param uasyncio.Event stop_event: handling the ntrip client (stop/resume)
         """
         cls._app = app
         cls._gga_q = gga_q
@@ -73,6 +83,8 @@ class GnssHandler:
         cls._msg_q = msg_q
         cls._pos_q = pos_q
         cls.rtcm_enabled = False
+        cls.ntrip_lock = ntrip_lock
+        cls.ntrip_stop_event = stop_event
 
         gc.collect()
 
@@ -274,6 +286,21 @@ class GnssHandler:
         else:
             gc.collect()
             return False  # ACK-NACK
+
+    @classmethod
+    def enableNTRIP(cls, enable: int):
+        """
+        Enable/Disable NTRIP client
+        sets/clears the stopevent for the GNSSNtripClient.run() task
+
+        :param int enable: 0 = enable / 1 = disable
+        :return: True if successful, False if failed
+        :rtype: bool
+        """
+        if enable == 1:
+            cls.ntrip_stop_event.clear()
+        else:
+            cls.ntrip_stop_event.set()
 
     @classmethod
     async def set_minimum_nmea_msgs(cls):
