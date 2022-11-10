@@ -63,7 +63,8 @@ class GNSSNTRIPClient:
                  app: object,
                  gga_q: primitives.queue.Queue,
                  stopevent: uasyncio.Event,
-                 ggaevent: uasyncio.Event):
+                 ggaevent: uasyncio.Event,
+                 ntrip_enabled: bool):
         """
         Constructor.
 
@@ -76,7 +77,7 @@ class GNSSNTRIPClient:
         self._swriter = None
         self._sreader = None
         self._read_task = None
-        self._connected = False
+        self._connected = ntrip_enabled
         self._stopevent = stopevent
         self._read_gga_event = ggaevent
         self._output = uasyncio.StreamWriter(rtcmoutput)

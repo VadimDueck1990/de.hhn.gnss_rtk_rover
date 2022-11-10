@@ -41,19 +41,21 @@ class RequestHandler:
 
 
 async def _setUpdateRate(http_client, http_response):
-    # rate = GnssHandler.get_update_rate()
     print("set update rate triggered")
     response = await http_client.ReadRequestContentAsJSON()
-    print(str(response))
-    await http_response.WriteResponseOk( headers		 = None,
-								  contentType	 = "text/html",
-								  contentCharset = "UTF-8",
-								  content 		 = None )
+    try:
+        rate = response["updateRate"]
+        result = await GnssHandler.set_update_rate(rate)
+        rate = await GnssHandler.get_update_rate()
+        response = {"updateRate": rate}
+        await http_response.WriteResponseJSONOk(response)
+    except Exception as ex:
+        await http_response.WriteResponseJSONError(400)
 
 
 async def _getUpdateRate(http_client, http_response):
-    # rate = await GnssHandler.get_update_rate()
-    response = {"updateRate": 200}
+    rate = await GnssHandler.get_update_rate()
+    response = {"updateRate": rate}
     print(str(response))
     result = await http_response.WriteResponseJSONOk(response)
     print("send response: " + str(result))

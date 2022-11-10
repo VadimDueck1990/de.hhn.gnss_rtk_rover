@@ -189,13 +189,14 @@ class MicroWebSrv :
     # ============================================================================
 
     async def _serverProcess(self, sreader: uasyncio.StreamReader, swriter: uasyncio.StreamWriter) :
-        try:
-            cliAddr = sreader.get_extra_info("peername")
-            print("client connected: " + str(cliAddr))
-            cli = self._client(self, sreader, swriter, cliAddr)
-            await cli.processRequest()
-        except OSError:
-            pass
+        self._started = True
+        # try:
+        cliAddr = sreader.get_extra_info("peername")
+        print("client connected: " + str(cliAddr))
+        cli = self._client(self, sreader, swriter, cliAddr)
+        await cli.processRequest()
+        # except OSError:
+        #     pass
 
     # ============================================================================
     # ===( Functions )============================================================
@@ -204,6 +205,7 @@ class MicroWebSrv :
     async def Start(self) :
         if not self._started :
             self._server = await uasyncio.start_server(self._serverProcess, self._srvAddr[0], self._srvAddr[1])
+            print("server running at: " + str(self._srvAddr[0]) + ":" + str(self._srvAddr[1]))
             self._started = True
     # ----------------------------------------------------------------------------
 
@@ -307,61 +309,61 @@ class MicroWebSrv :
         # ------------------------------------------------------------------------
 
         async def processRequest(self) :
-            try :
-                response = MicroWebSrv._response(self)
-                if await self._parseFirstLine(response) :
-                    if await self._parseHeader(response) :
-                        upg = self._getConnUpgrade()
-                        if not upg :
-                            routeHandler, routeArgs = self._microWebSrv.GetRouteHandler(self._resPath, self._method)
-                            if routeHandler :
-                                try :
-                                    if routeArgs is not None:
-                                        await routeHandler(self, response, routeArgs)
-                                    else :
-                                        await routeHandler(self, response)
-                                except Exception as ex :
-                                    print('MicroWebSrv handler exception:\r\n  - In route %s %s\r\n  - %s' % (self._method, self._resPath, ex))
-                                    raise ex
-                            elif self._method.upper() == "GET" :
-                                filepath = self._microWebSrv._physPathFromURLPath(self._resPath)
-                                if filepath :
-                                    if MicroWebSrv._isPyHTMLFile(filepath) :
-                                        await response.WriteResponsePyHTMLFile(filepath)
-                                    else :
-                                        contentType = self._microWebSrv.GetMimeTypeFromFilename(filepath)
-                                        if contentType :
-                                            if self._microWebSrv.LetCacheStaticContentLevel > 0 :
-                                                if self._microWebSrv.LetCacheStaticContentLevel > 1 and \
-                                                   'if-modified-since' in self._headers :
-                                                    await response.WriteResponseNotModified()
-                                                else:
-                                                    headers = { 'Last-Modified' : 'Fri, 1 Jan 2018 23:42:00 GMT', \
-                                                                'Cache-Control' : 'max-age=315360000' }
-                                                    await response.WriteResponseFile(filepath, contentType, headers)
-                                            else :
-                                                await response.WriteResponseFile(filepath, contentType)
-                                        else :
-                                            await response.WriteResponseForbidden()
+            # try :
+            response = MicroWebSrv._response(self)
+            if await self._parseFirstLine(response) :
+                if await self._parseHeader(response) :
+                    upg = self._getConnUpgrade()
+                    if not upg :
+                        routeHandler, routeArgs = self._microWebSrv.GetRouteHandler(self._resPath, self._method)
+                        if routeHandler :
+                            #try :
+                                if routeArgs is not None:
+                                    await routeHandler(self, response, routeArgs)
                                 else :
-                                    await response.WriteResponseNotFound()
+                                    await routeHandler(self, response)
+                            # except Exception as ex :
+                            #     print('MicroWebSrv handler exception:\r\n  - In route %s %s\r\n  - %s' % (self._method, self._resPath, ex))
+                            #     raise ex
+                        elif self._method.upper() == "GET" :
+                            filepath = self._microWebSrv._physPathFromURLPath(self._resPath)
+                            if filepath :
+                                if MicroWebSrv._isPyHTMLFile(filepath) :
+                                    await response.WriteResponsePyHTMLFile(filepath)
+                                else :
+                                    contentType = self._microWebSrv.GetMimeTypeFromFilename(filepath)
+                                    if contentType :
+                                        if self._microWebSrv.LetCacheStaticContentLevel > 0 :
+                                            if self._microWebSrv.LetCacheStaticContentLevel > 1 and \
+                                               'if-modified-since' in self._headers :
+                                                await response.WriteResponseNotModified()
+                                            else:
+                                                headers = { 'Last-Modified' : 'Fri, 1 Jan 2018 23:42:00 GMT', \
+                                                            'Cache-Control' : 'max-age=315360000' }
+                                                await response.WriteResponseFile(filepath, contentType, headers)
+                                        else :
+                                            await response.WriteResponseFile(filepath, contentType)
+                                    else :
+                                        await response.WriteResponseForbidden()
                             else :
-                                await response.WriteResponseMethodNotAllowed()
-                        elif upg == 'websocket' and 'MicroWebSocket' in globals() \
-                             and self._microWebSrv.AcceptWebSocketCallback :
-                                MicroWebSocket( socket         = self._socket,
-                                                httpClient     = self,
-                                                httpResponse   = response,
-                                                maxRecvLen     = self._microWebSrv.MaxWebSocketRecvLen,
-                                                threaded       = self._microWebSrv.WebSocketThreaded,
-                                                acceptCallback = self._microWebSrv.AcceptWebSocketCallback )
-                                return
+                                await response.WriteResponseNotFound()
                         else :
-                            await response.WriteResponseNotImplemented()
+                            await response.WriteResponseMethodNotAllowed()
+                    elif upg == 'websocket' and 'MicroWebSocket' in globals() \
+                         and self._microWebSrv.AcceptWebSocketCallback :
+                            MicroWebSocket( socket         = self._socket,
+                                            httpClient     = self,
+                                            httpResponse   = response,
+                                            maxRecvLen     = self._microWebSrv.MaxWebSocketRecvLen,
+                                            threaded       = self._microWebSrv.WebSocketThreaded,
+                                            acceptCallback = self._microWebSrv.AcceptWebSocketCallback )
+                            return
                     else :
-                        await response.WriteResponseBadRequest()
-            except :
-                await response.WriteResponseInternalServerError()
+                        await response.WriteResponseNotImplemented()
+                else :
+                    await response.WriteResponseBadRequest()
+            # except :
+            #     await response.WriteResponseInternalServerError()
             try :
                 if self._fileread is not self._sreader:
                     await self._fileread.wait_closed()
@@ -864,6 +866,7 @@ class MicroWebSrv :
             504: ('Gateway Timeout',
                   'The gateway server did not receive a timely response'),
             505: ('HTTP Version Not Supported', 'Cannot fulfill request.'),
+            506: ('GNSS Receiver is not responding. Something is wrong with the UART connection')
         }
 
     # ============================================================================

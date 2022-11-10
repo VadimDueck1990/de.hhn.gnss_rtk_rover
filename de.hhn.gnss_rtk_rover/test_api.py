@@ -17,7 +17,7 @@ print(wifi.ifconfig())
 async def printtest():
     count = 0
     while True:
-        print("Task is working and counting: ", count)
+        # print("Task is working and counting: ", count)
         count += 1
         await uasyncio.sleep_ms(100)
 
@@ -28,7 +28,7 @@ async def main():
     webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q))
     count2 = 0
     while True:
-        print("main task running: " + str(count2))
+        # print("main task running: " + str(count2))
         count2 += 1
         await uasyncio.sleep_ms(100)
 
