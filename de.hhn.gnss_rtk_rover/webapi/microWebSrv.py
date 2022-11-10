@@ -189,20 +189,13 @@ class MicroWebSrv :
     # ============================================================================
 
     async def _serverProcess(self, sreader: uasyncio.StreamReader, swriter: uasyncio.StreamWriter) :
-        self._started = True
         try:
-            while True :
-                try :
-                    cliAddr = sreader.get_extra_info("peername")
-                except Exception as ex :
-                    if ex.args and ex.args[0] == 113 :
-                        break
-                    continue
-                cli = self._client(self, sreader, swriter, cliAddr)
-                await cli.processRequest()
+            cliAddr = sreader.get_extra_info("peername")
+            print("client connected: " + str(cliAddr))
+            cli = self._client(self, sreader, swriter, cliAddr)
+            await cli.processRequest()
         except OSError:
             pass
-        self._started = False
 
     # ============================================================================
     # ===( Functions )============================================================
@@ -211,15 +204,7 @@ class MicroWebSrv :
     async def Start(self) :
         if not self._started :
             self._server = await uasyncio.start_server(self._serverProcess, self._srvAddr[0], self._srvAddr[1])
-            while True:
-                await uasyncio.sleep(100)
-            # self._server.setsockopt( socket.SOL_SOCKET,
-            #                          socket.SO_REUSEADDR,
-            #                          1 )
-            # self._server.bind(self._srvAddr)
-            # self._server.listen(16)
-            # self._serverProcess()
-
+            self._started = True
     # ----------------------------------------------------------------------------
 
     async def Stop(self) :
@@ -379,11 +364,11 @@ class MicroWebSrv :
                 await response.WriteResponseInternalServerError()
             try :
                 if self._fileread is not self._sreader:
-                    self._fileread.close()
-                self._sreader.close()
+                    await self._fileread.wait_closed()
+                await self._sreader.wait_closed()
                 if self._filewrite is not self._swriter:
-                    self._filewrite.close()
-                self._swriter.close()
+                    await self._filewrite.wait_closed()
+                await self._swriter.wait_closed()
             except :
                 pass
 
@@ -704,8 +689,7 @@ class MicroWebSrv :
         # ------------------------------------------------------------------------
 
         async def WriteResponseOk(self, headers=None, contentType=None, contentCharset=None, content=None) :
-            result = await self.WriteResponse(200, headers, contentType, contentCharset, content)
-            return result
+            return await self.WriteResponse(200, headers, contentType, contentCharset, content)
 
         # ------------------------------------------------------------------------
 

@@ -19,7 +19,7 @@ async def printtest():
     while True:
         print("Task is working and counting: ", count)
         count += 1
-        await uasyncio.sleep_ms(200)
+        await uasyncio.sleep_ms(100)
 
 
 async def main():
@@ -30,6 +30,6 @@ async def main():
     while True:
         print("main task running: " + str(count2))
         count2 += 1
-        await uasyncio.sleep_ms(200)
+        await uasyncio.sleep_ms(100)
 
 uasyncio.run(main())

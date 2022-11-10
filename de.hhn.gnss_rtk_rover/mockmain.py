@@ -71,7 +71,7 @@ async def main():
 
     wifi = WiFiManager(WIFI_SSID, WIFI_PW)
     await wifi.connect()
-    await GnssHandler.set_update_rate(500)
+    await GnssHandler.set_update_rate(100)
     enabled = await GnssHandler.set_high_precision_mode(1)
     print("main -> high precision mode enabled: " + str(enabled))
     gc.collect()
@@ -86,7 +86,7 @@ async def main():
     ntriptask = uasyncio.create_task(ntripclient.run())
     gc.collect()
     gccount = 0
-    # RequestHandler.initialize(test, pos_q)
+    webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q))
     while wifi.wifi.isconnected():
         gccount += 1
         hacc, vacc = await GnssHandler.get_precision()

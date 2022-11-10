@@ -34,22 +34,25 @@ class RequestHandler:
         cls._position_q = queue
 
         _route_handlers = [("/rate", "GET", _getUpdateRate),
-                           ("/rate", "POST", cls._setUpdateRate)]
+                           ("/rate", "POST", _setUpdateRate)]
 
         srv = MicroWebSrv(routeHandlers=_route_handlers, webPath='/www/')
         await srv.Start()
 
-    @classmethod
-    async def _setUpdateRate(cls, http_client, http_response):
-        # rate = GnssHandler.get_update_rate()
-        print("set update rate triggered")
-        response = http_client.ReadRequestContentAsJSON()
-        print(str(response))
-        await http_response.WriteResponseOk()
+
+async def _setUpdateRate(http_client, http_response):
+    # rate = GnssHandler.get_update_rate()
+    print("set update rate triggered")
+    response = await http_client.ReadRequestContentAsJSON()
+    print(str(response))
+    await http_response.WriteResponseOk( headers		 = None,
+								  contentType	 = "text/html",
+								  contentCharset = "UTF-8",
+								  content 		 = None )
 
 
 async def _getUpdateRate(http_client, http_response):
-    # rate = GnssHandler.get_update_rate()
+    # rate = await GnssHandler.get_update_rate()
     response = {"updateRate": 200}
     print(str(response))
     result = await http_response.WriteResponseJSONOk(response)
