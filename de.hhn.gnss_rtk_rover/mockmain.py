@@ -80,11 +80,12 @@ async def main():
     ntriptask = uasyncio.create_task(ntripclient.run(rtcm_lock, ntrip_stop_event))
     gc.collect()
     gccount = 0
-    webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q, ntrip_stop_event))
+    webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q, ntrip_stop_event, rtcm_lock))
     while wifi.wifi.isconnected():
         gccount += 1
         async with rtcm_lock:
             print("rtcm enabled: " + str(GnssHandler.rtcm_enabled))
+        debug_gc()
         await uasyncio.sleep(1)
 
 
