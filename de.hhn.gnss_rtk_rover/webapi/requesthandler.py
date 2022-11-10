@@ -34,7 +34,8 @@ class RequestHandler:
         cls._position_q = queue
 
         _route_handlers = [("/rate", "GET", _getUpdateRate),
-                           ("/rate", "POST", _setUpdateRate)]
+                           ("/rate", "POST", _setUpdateRate),
+                           ("/precision", "GET", _getPrecision)]
 
         srv = MicroWebSrv(routeHandlers=_route_handlers, webPath='/www/')
         await srv.Start()
@@ -54,8 +55,18 @@ async def _setUpdateRate(http_client, http_response):
 
 
 async def _getUpdateRate(http_client, http_response):
-    rate = await GnssHandler.get_update_rate()
-    response = {"updateRate": rate}
-    print(str(response))
-    result = await http_response.WriteResponseJSONOk(response)
-    print("send response: " + str(result))
+    try:
+        rate = await GnssHandler.get_update_rate()
+        response = {"updateRate": rate}
+        await http_response.WriteResponseJSONOk(response)
+    except Exception as ex:
+        await http_response.WriteResponseJSONError(400)
+
+
+async def _getPrecision(http_client, http_response):
+    try:
+        hAcc, vAcc = await GnssHandler.get_precision()
+        response = {"hAcc": hAcc, "vAcc": vAcc}
+        await http_response.WriteResponseJSONOk(response)
+    except Exception as ex:
+        await http_response.WriteResponseJSONError(400)

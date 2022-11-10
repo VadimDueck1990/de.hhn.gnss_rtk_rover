@@ -107,10 +107,10 @@ class UBXReader:
                     raw_data = await self._read_rtcm3(bytehdr)
                     # if protocol filter passes RTCM, return message,
                     # otherwise discard and continue
-                    if self._protfilter & ubt.RTCM3_PROTOCOL:
-                        parsing = False
-                    else:
-                        continue
+                    # if self._protfilter & ubt.RTCM3_PROTOCOL:
+                    parsing = False
+                    # else:
+                    #     continue
                 # unrecognised protocol header
                 else:
                     if self._quitonerror == ubt.ERR_RAISE:

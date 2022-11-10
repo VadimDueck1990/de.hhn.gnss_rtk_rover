@@ -31,6 +31,7 @@ class GnssHandler:
     _ack_nack_q = None
     _msg_q = None
     _pos_q = None
+    rtcm_enabled = None
 
     # predefined strings
     _config_key_gps = "CFG_SIGNAL_GPS_ENA"
@@ -71,6 +72,7 @@ class GnssHandler:
         cls._ack_nack_q = ack_nack_q
         cls._msg_q = msg_q
         cls._pos_q = pos_q
+        cls.rtcm_enabled = False
 
         gc.collect()
 

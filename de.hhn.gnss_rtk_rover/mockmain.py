@@ -1,7 +1,7 @@
 import gc
 import uasyncio
 from machine import UART, Pin
-from uasyncio import Event
+from uasyncio import Event, Task, Lock
 from utils.wifimanager import WiFiManager
 from utils.globals import WIFI_SSID, WIFI_PW
 from utils.mem_debug import debug_gc
@@ -23,6 +23,9 @@ async def main():
 
     rtcmTx = Pin(4)
     rtcmRx = Pin(5)
+
+    rtcm_enabled = False
+    rtcm_lock = Lock()
 
     gga_q = Queue(maxsize=1)
     cfg_q = Queue(maxsize=5)
@@ -83,10 +86,12 @@ async def main():
     print("main -> got position, starting ntrip client")
     ntripclient = GNSSNTRIPClient(uart_rtcm, test, gga_q, ntrip_stop_event, ggaevent)
     ntrip_stop_event.clear()
-    ntriptask = uasyncio.create_task(ntripclient.run())
+    ntriptask = uasyncio.create_task(ntripclient.run(rtcm_lock))
     gc.collect()
     gccount = 0
     webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q))
+    async with rtcm_lock:
+        print("rtcm enabled: " + str(GnssHandler.rtcm_enabled))
     while wifi.wifi.isconnected():
         gccount += 1
         # hacc, vacc = await GnssHandler.get_precision()
