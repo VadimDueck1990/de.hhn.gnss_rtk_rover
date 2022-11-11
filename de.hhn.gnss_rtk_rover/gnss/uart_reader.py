@@ -106,7 +106,7 @@ class UartReader:
                 except Exception as err:
                     print("Badly formed message {}".format(raw_data))
                     continue
-                # print("uart_reader -> nmea received: " + str(raw_data))
+                print("uart_reader -> nmea received: " + str(raw_data))
                 cls._get_position_dict(raw_data)
                 # if the queue is full then skip. The gga consumer needs to handle messages fast enough otherwise
                 # rxBuffer will overflow

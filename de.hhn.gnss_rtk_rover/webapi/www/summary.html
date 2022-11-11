@@ -9,16 +9,57 @@
 
 	<body>
 		<h1>GNSS-RTK Rover</h1>
-        <div id="result" style="color: SlateBlue; font-size: 200%; font-family: Monaco, monospace; margin: 20px"></div>
+		<h2>Time:</h2>
+        <div id="time" style="color: SlateBlue; font-size: 200%; font-family: Monaco, monospace; margin: 10px"></div>
+		<h2>Latitude:</h2>
+        <div id="lat" style="color: SlateBlue; font-size: 200%; font-family: Monaco, monospace; margin: 10px"></div>
+		<h2>Longitude:</h2>
+        <div id="lon" style="color: SlateBlue; font-size: 200%; font-family: Monaco, monospace; margin: 10px"></div>
+		<h2>Elevation:</h2>
+        <div id="elev" style="color: SlateBlue; font-size: 200%; font-family: Monaco, monospace; margin: 10px"></div>
+		<h2>Fixtype:</h2>
+        <div id="fixtype" style="color: SlateBlue; font-size: 200%; font-family: Monaco, monospace; margin: 10px"></div>
 
 	<script>
 	if(typeof(EventSource) !== 'undefined') {
-		const source = new EventSource('http://' + window.location.hostname + '/time');
+		const source = new EventSource('http://' + window.location.hostname + '/event-stream/time');
 		source.onmessage = function(e) {
-			document.getElementById("result").innerHTML = e.data;
+			document.getElementById("time").innerHTML = e.data;
 		};
 	} else {
-		document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
+		document.getElementById("time").innerHTML = "Sorry, your browser does not support server-sent events...";
+	}
+	if(typeof(EventSource) !== 'undefined') {
+		const source = new EventSource('http://' + window.location.hostname + '/event-stream/lat');
+		source.onmessage = function(e) {
+			document.getElementById("lat").innerHTML = e.data;
+		};
+	} else {
+		document.getElementById("lat").innerHTML = "Sorry, your browser does not support server-sent events...";
+	}
+	if(typeof(EventSource) !== 'undefined') {
+		const source = new EventSource('http://' + window.location.hostname + '/event-stream/lon');
+		source.onmessage = function(e) {
+			document.getElementById("lon").innerHTML = e.data;
+		};
+	} else {
+		document.getElementById("lon").innerHTML = "Sorry, your browser does not support server-sent events...";
+	}
+	if(typeof(EventSource) !== 'undefined') {
+		const source = new EventSource('http://' + window.location.hostname + '/event-stream/elev');
+		source.onmessage = function(e) {
+			document.getElementById("elev").innerHTML = e.data;
+		};
+	} else {
+		document.getElementById("elev").innerHTML = "Sorry, your browser does not support server-sent events...";
+	}
+	if(typeof(EventSource) !== 'undefined') {
+		const source = new EventSource('http://' + window.location.hostname + '/event-stream/fix');
+		source.onmessage = function(e) {
+			document.getElementById("fixtype").innerHTML = e.data;
+		};
+	} else {
+		document.getElementById("fixtype").innerHTML = "Sorry, your browser does not support server-sent events...";
 	}
 </script>
 	</body>

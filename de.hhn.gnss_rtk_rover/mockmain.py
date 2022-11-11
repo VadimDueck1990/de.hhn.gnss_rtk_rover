@@ -82,6 +82,8 @@ async def main():
     gccount = 0
     webserver = uasyncio.create_task(RequestHandler.initialize(test, pos_q, ntrip_stop_event, rtcm_lock))
     while wifi.wifi.isconnected():
+        hAcc, vAcc = await GnssHandler.get_precision()
+        print("hAcc: " + str(hAcc) + "mm, vAcc: " + str(vAcc) + "mm")
         # gccount += 1
         # async with rtcm_lock:
         #     print("rtcm enabled: " + str(GnssHandler.rtcm_enabled))

@@ -6,6 +6,7 @@ Created on 4 Sep 2022
 """
 import uasyncio
 import utime
+from pyubx2.ubxtypes_core import FIXTYPES
 from gnss.gnss_handler import GnssHandler
 from webapi.microWebSrv import MicroWebSrv
 from primitives.queue import Queue
@@ -57,7 +58,11 @@ class RequestHandler:
                            ("/ntrip", "GET", cls._getNtripStatus),
                            ("/satsystems", "GET", cls._getSatSystems),
                            ("/satsystems", "POST", cls._setSatSystems),
-                           ("/time", "GET", cls._getTime)]
+                           ("/event-stream/time", "GET", cls._getTime),
+                           ("/event-stream/lat", "GET", cls._getLat),
+                           ("/event-stream/lon", "GET", cls._getLon),
+                           ("/event-stream/elev", "GET", cls._getElev),
+                           ("/event-stream/fix", "GET", cls._getFixType)]
 
         srv = MicroWebSrv(routeHandlers=_route_handlers, webPath='/webapi/www/')
         await srv.Start()
@@ -162,10 +167,54 @@ class RequestHandler:
                 cls._position_data = await GnssHandler.get_position()
                 cls._last_pos = utime.ticks_ms()
             time = cls._position_data["time"]
-            data = "Time: {0}".format(time)
         except Exception:
-            data = "Attempting to get data from receiver..."
+            time = "Attempting to get data from receiver..."
         await http_response.WriteResponseOk(headers = ({'Cache-Control': 'no-cache'}),
                                             contentType = 'text/event-stream',
                                             contentCharset = 'UTF-8',
-                                            content = 'data: {0}\n\n'.format(data))
+                                            content = 'data: {0}\n\n'.format(time))
+
+    @classmethod
+    async def _getLat(cls, http_client, http_response):
+        try:
+            lat = cls._position_data["lat"]
+        except Exception:
+            lat = "Attempting to get data from receiver..."
+        await http_response.WriteResponseOk(headers=({'Cache-Control': 'no-cache'}),
+                                            contentType='text/event-stream',
+                                            contentCharset='UTF-8',
+                                            content='data: {0}\n\n'.format(lat))
+
+    @classmethod
+    async def _getLon(cls, http_client, http_response):
+        try:
+            lon = cls._position_data["lon"]
+        except Exception:
+            lon = "Attempting to get data from receiver..."
+        await http_response.WriteResponseOk(headers=({'Cache-Control': 'no-cache'}),
+                                            contentType='text/event-stream',
+                                            contentCharset='UTF-8',
+                                            content='data: {0}\n\n'.format(lon))
+
+    @classmethod
+    async def _getElev(cls, http_client, http_response):
+        try:
+            elev = cls._position_data["elev"]
+        except Exception:
+            elev = "Attempting to get data from receiver..."
+        await http_response.WriteResponseOk(headers=({'Cache-Control': 'no-cache'}),
+                                            contentType='text/event-stream',
+                                            contentCharset='UTF-8',
+                                            content='data: {0}\n\n'.format(elev))
+
+    @classmethod
+    async def _getFixType(cls, http_client, http_response):
+        try:
+            fixtype = cls._position_data["fixType"]
+            fixtype_string = FIXTYPES[int(fixtype)]
+        except Exception:
+            fixtype_string = "Attempting to get data from receiver..."
+        await http_response.WriteResponseOk(headers=({'Cache-Control': 'no-cache'}),
+                                            contentType='text/event-stream',
+                                            contentCharset='UTF-8',
+                                            content='data: {0}\n\n'.format(fixtype_string))

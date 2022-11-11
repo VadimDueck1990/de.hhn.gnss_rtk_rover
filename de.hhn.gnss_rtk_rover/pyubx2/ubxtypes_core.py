@@ -29,6 +29,19 @@ GNSSLIST = {
     6: "GLONASS",
 }
 
+FIXTYPES = {
+    0: "Invalid, no position available",
+    1: "Autonomous GNSS fix, no correction data used",
+    2: "DGNSS fix, using a local DGNSS base station or correction service",
+    3: "PPS fix",
+    4: "RTK fix, high accuracy Real Time Kinematic",
+    5: "RTK Float, better than DGNSS, but not as accurate as RTK fix",
+    6: "Estimated fix (dead reckoning)",
+    7: "Manual input mode",
+    8: "Simulation mode",
+    9: "WAAS fix (not NMEA standard, but NotAvel receivers report this instead of a 2)"
+}
+
 # scaling factor constants
 SCAL9 = 1e-9  # 0.000000001
 SCAL8 = 1e-8  # 0.00000001
