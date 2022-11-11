@@ -303,6 +303,19 @@ class GnssHandler:
             cls.ntrip_stop_event.set()
 
     @classmethod
+    async def get_position(cls) -> dict:
+        """
+        ASYNC: Gets the position dictionary with: time, latitude, longitude, elevation and fixtype
+
+        :return: number representing ms between updates
+        :rtype: int
+        """
+        await cls._flush_receive_qs()
+
+        position = await cls._pos_q.get()
+        return position
+
+    @classmethod
     async def set_minimum_nmea_msgs(cls):
         """
         ASYNC: Deactivate all NMEA messages on UART1, except NMEA-GGA

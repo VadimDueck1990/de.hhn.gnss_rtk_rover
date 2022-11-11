@@ -43,6 +43,7 @@ class RequestHandler:
         _route_handlers = [("/rate", "GET", cls._getUpdateRate),
                            ("/rate", "POST", cls._setUpdateRate),
                            ("/precision", "GET", cls._getPrecision),
+                           ("/position", "GET", cls._getPosition),
                            ("/ntrip", "POST", cls._enableNTRIP),
                            ("/ntrip", "GET", cls._getNtripStatus),
                            ("/satsystems", "GET", cls._getSatSystems),
@@ -131,5 +132,13 @@ class RequestHandler:
                     enabled = False
             response = {"enabled": enabled}
             await http_response.WriteResponseJSONOk(response)
+        except Exception as ex:
+            await http_response.WriteResponseJSONError(400)
+
+    @classmethod
+    async def _getPosition(cls, http_client, http_response):
+        try:
+            position = await GnssHandler.get_position()
+            await http_response.WriteResponseJSONOk(position)
         except Exception as ex:
             await http_response.WriteResponseJSONError(400)
