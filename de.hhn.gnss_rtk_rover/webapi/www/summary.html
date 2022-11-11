@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+
+<html lang=de>
+
+	<head>
+		<meta charset="UTF-8" />
+		<title>GNSS-RTK Rover</title>
+	</head>
+
+	<body>
+		<h1>GNSS-RTK Rover</h1>
+        <div id="result" style="color: SlateBlue; font-size: 200%; font-family: Monaco, monospace; margin: 20px"></div>
+
+	<script>
+	if(typeof(EventSource) !== 'undefined') {
+		const source = new EventSource('http://' + window.location.hostname + '/time');
+		source.onmessage = function(e) {
+			document.getElementById("result").innerHTML = e.data;
+		};
+	} else {
+		document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
+	}
+</script>
+	</body>
+
+</html>

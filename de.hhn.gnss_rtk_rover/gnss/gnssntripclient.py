@@ -140,7 +140,6 @@ class GNSSNTRIPClient:
         ggainterval = int(self._settings["ggainterval"])
 
         while True:
-            print("initializing socket connection, stopevent: " + str(stopevent.is_set()))
             if not stopevent.is_set():
                 try:
                     self._socket = usocket.socket(usocket.AF_INET, usocket.SOCK_STREAM)

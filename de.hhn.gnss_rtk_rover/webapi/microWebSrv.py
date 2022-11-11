@@ -333,16 +333,20 @@ class MicroWebSrv :
                                 else :
                                     contentType = self._microWebSrv.GetMimeTypeFromFilename(filepath)
                                     if contentType :
-                                        if self._microWebSrv.LetCacheStaticContentLevel > 0 :
-                                            if self._microWebSrv.LetCacheStaticContentLevel > 1 and \
-                                               'if-modified-since' in self._headers :
-                                                await response.WriteResponseNotModified()
-                                            else:
-                                                headers = { 'Last-Modified' : 'Fri, 1 Jan 2018 23:42:00 GMT', \
-                                                            'Cache-Control' : 'max-age=315360000' }
-                                                await response.WriteResponseFile(filepath, contentType, headers)
-                                        else :
-                                            await response.WriteResponseFile(filepath, contentType)
+                                        # if self._microWebSrv.LetCacheStaticContentLevel > 0 :
+                                        #     if self._microWebSrv.LetCacheStaticContentLevel > 1 and \
+                                        #        'if-modified-since' in self._headers :
+                                        #         await response.WriteResponseNotModified()
+                                        #         print("inside microwebsrv: not modified")
+                                        #     else:
+                                        #         headers = { 'Last-Modified' : 'Fri, 11 Nov 2022 01:42:00 GMT', \
+                                        #                     'Cache-Control' : 'max-age=315360000' }
+                                        #         print("inside microwebsrv: Last modified " + str(headers))
+                                        #         result = await response.WriteResponseFile(filepath, contentType, headers)
+                                        #         print("WriteResponseFile successfull?: " + str(result))
+                                        # else :
+                                        result = await response.WriteResponseFile(filepath, contentType)
+                                        print("WriteResponseFile successfull?: " + str(result))
                                     else :
                                         await response.WriteResponseForbidden()
                             else :
@@ -538,7 +542,7 @@ class MicroWebSrv :
             if data :
                 if type(data) == str :
                     data = data.encode(strEncoding)
-                data = memoryview(data)
+                # data = memoryview(data)
                 self._client._filewrite.write(data)
                 await self._client._filewrite.drain()
                 # while data :
@@ -667,7 +671,7 @@ class MicroWebSrv :
                                 x = file.readinto(buf)
                                 if x < len(buf) :
                                     buf = memoryview(buf)[:x]
-                                if not self._write(buf) :
+                                if not await self._write(buf) :
                                     return False
                                 size -= x
                             return True

@@ -101,14 +101,12 @@ class UartReader:
                 try:
                     checksum_valid = cls._isvalid_cksum(raw_data)
                     if not checksum_valid:
-
                         print("uart_reader WARN -> NMEA Sentence corrupted, invalid checksum")
                         continue
                 except Exception as err:
                     print("Badly formed message {}".format(raw_data))
                     continue
-                print("gga...")
-                print("uart_reader -> nmea received: " + str(raw_data))
+                # print("uart_reader -> nmea received: " + str(raw_data))
                 cls._get_position_dict(raw_data)
                 # if the queue is full then skip. The gga consumer needs to handle messages fast enough otherwise
                 # rxBuffer will overflow

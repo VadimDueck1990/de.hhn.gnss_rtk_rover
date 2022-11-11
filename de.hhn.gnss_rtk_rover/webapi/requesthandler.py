@@ -5,7 +5,7 @@ Created on 4 Sep 2022
 :author: vdueck
 """
 import uasyncio
-
+import utime
 from gnss.gnss_handler import GnssHandler
 from webapi.microWebSrv import MicroWebSrv
 from primitives.queue import Queue
@@ -22,6 +22,11 @@ class RequestHandler:
     _srv = None
     _ntrip_stop_event = None
     _rtcm_lock = None
+    _last_pos = None
+    _acc_interval = None
+
+    # data cache to save on UART reads/writes
+    _position_data = None
 
     @classmethod
     async def initialize(cls,
@@ -40,6 +45,10 @@ class RequestHandler:
         cls._position_q = queue
         cls._ntrip_stop_event = ntrip_stop_event
         cls._rtcm_lock = rtcm_lock
+
+        cls._position_data = GnssHandler.get_position()
+        cls._last_pos = utime.ticks_ms()
+
         _route_handlers = [("/rate", "GET", cls._getUpdateRate),
                            ("/rate", "POST", cls._setUpdateRate),
                            ("/precision", "GET", cls._getPrecision),
@@ -47,9 +56,10 @@ class RequestHandler:
                            ("/ntrip", "POST", cls._enableNTRIP),
                            ("/ntrip", "GET", cls._getNtripStatus),
                            ("/satsystems", "GET", cls._getSatSystems),
-                           ("/satsystems", "POST", cls._setSatSystems)]
+                           ("/satsystems", "POST", cls._setSatSystems),
+                           ("/time", "GET", cls._getTime)]
 
-        srv = MicroWebSrv(routeHandlers=_route_handlers, webPath='/www/')
+        srv = MicroWebSrv(routeHandlers=_route_handlers, webPath='/webapi/www/')
         await srv.Start()
 
     @classmethod
@@ -142,3 +152,20 @@ class RequestHandler:
             await http_response.WriteResponseJSONOk(position)
         except Exception as ex:
             await http_response.WriteResponseJSONError(400)
+
+    @classmethod
+    async def _getTime(cls, http_client, http_response):
+        try:
+            if utime.ticks_diff(utime.ticks_ms(), cls._last_pos) > 5000:
+                print("difference: " + str(utime.ticks_diff(utime.ticks_ms(), cls._last_pos)))
+                print("polling new position data")
+                cls._position_data = await GnssHandler.get_position()
+                cls._last_pos = utime.ticks_ms()
+            time = cls._position_data["time"]
+            data = "Time: {0}".format(time)
+        except Exception:
+            data = "Attempting to get data from receiver..."
+        await http_response.WriteResponseOk(headers = ({'Cache-Control': 'no-cache'}),
+                                            contentType = 'text/event-stream',
+                                            contentCharset = 'UTF-8',
+                                            content = 'data: {0}\n\n'.format(data))
