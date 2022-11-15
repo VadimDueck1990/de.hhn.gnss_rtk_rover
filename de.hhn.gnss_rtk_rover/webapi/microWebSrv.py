@@ -6,9 +6,6 @@ Copyright © 2018 Jean-Christophe Bos & HC² (www.hc2.fr)
 
 from    json        import loads, dumps
 from    os          import stat
-from    _thread     import start_new_thread
-import  socket
-import  gc
 import  re
 
 import uasyncio
@@ -161,7 +158,7 @@ class MicroWebSrv :
         self._started       = False
 
         self.MaxWebSocketRecvLen        = 1024
-        self.WebSocketThreaded          = True
+        self.WebSocketThreaded          = False
         self.AcceptWebSocketCallback    = None
         self.LetCacheStaticContentLevel = 2
 
@@ -282,9 +279,7 @@ class MicroWebSrv :
         # ------------------------------------------------------------------------
 
         def __init__(self, microWebSrv, sreader: uasyncio.StreamReader, swriter: uasyncio.StreamWriter, addr) :
-            # socket.settimeout(2)
             self._microWebSrv   = microWebSrv
-            # self._socket        = socket
             self._sreader       = sreader
             self._swriter       = swriter
             self._addr          = addr
@@ -297,14 +292,7 @@ class MicroWebSrv :
             self._headers       = { }
             self._contentType   = None
             self._contentLength = 0
-            
-            # if hasattr(socket, 'readline'):   # MicroPython
-            self._fileread  = self._sreader
-            self._filewrite = self._swriter
-            # else:   # CPython
-            #     self._socketfile = self._socket.makefile('rwb')
-                        
-            # await self._processRequest()
+            self._wstask        = None
 
         # ------------------------------------------------------------------------
 
@@ -333,20 +321,7 @@ class MicroWebSrv :
                                 else :
                                     contentType = self._microWebSrv.GetMimeTypeFromFilename(filepath)
                                     if contentType :
-                                        # if self._microWebSrv.LetCacheStaticContentLevel > 0 :
-                                        #     if self._microWebSrv.LetCacheStaticContentLevel > 1 and \
-                                        #        'if-modified-since' in self._headers :
-                                        #         await response.WriteResponseNotModified()
-                                        #         print("inside microwebsrv: not modified")
-                                        #     else:
-                                        #         headers = { 'Last-Modified' : 'Fri, 11 Nov 2022 01:42:00 GMT', \
-                                        #                     'Cache-Control' : 'max-age=315360000' }
-                                        #         print("inside microwebsrv: Last modified " + str(headers))
-                                        #         result = await response.WriteResponseFile(filepath, contentType, headers)
-                                        #         print("WriteResponseFile successfull?: " + str(result))
-                                        # else :
                                         result = await response.WriteResponseFile(filepath, contentType)
-                                        print("WriteResponseFile successfull?: " + str(result))
                                     else :
                                         await response.WriteResponseForbidden()
                             else :
@@ -355,12 +330,14 @@ class MicroWebSrv :
                             await response.WriteResponseMethodNotAllowed()
                     elif upg == 'websocket' and 'MicroWebSocket' in globals() \
                          and self._microWebSrv.AcceptWebSocketCallback :
-                            MicroWebSocket( socket         = self._socket,
-                                            httpClient     = self,
-                                            httpResponse   = response,
-                                            maxRecvLen     = self._microWebSrv.MaxWebSocketRecvLen,
-                                            threaded       = self._microWebSrv.WebSocketThreaded,
-                                            acceptCallback = self._microWebSrv.AcceptWebSocketCallback )
+                            print("inside websrv.processrequest(): starting ws task")
+                            websocket = MicroWebSocket()
+                            await websocket.run( sreader = self._sreader,
+                                                 swriter        = self._swriter,
+                                                 httpClient     = self,
+                                                 httpResponse   = response,
+                                                 maxRecvLen     = self._microWebSrv.MaxWebSocketRecvLen,
+                                                 acceptCallback = self._microWebSrv.AcceptWebSocketCallback)
                             return
                     else :
                         await response.WriteResponseNotImplemented()
@@ -369,11 +346,7 @@ class MicroWebSrv :
             # except :
             #     await response.WriteResponseInternalServerError()
             try :
-                if self._fileread is not self._sreader:
-                    await self._fileread.wait_closed()
                 await self._sreader.wait_closed()
-                if self._filewrite is not self._swriter:
-                    await self._filewrite.wait_closed()
                 await self._swriter.wait_closed()
             except :
                 pass
@@ -382,7 +355,7 @@ class MicroWebSrv :
 
         async def _parseFirstLine(self, response) :
             try :
-                line_raw = await self._fileread.readline()
+                line_raw = await self._sreader.readline()
                 elements = line_raw.decode().strip().split()
                 if len(elements) == 3 :
                     self._method  = elements[0].upper()
@@ -408,7 +381,7 @@ class MicroWebSrv :
 
         async def _parseHeader(self, response) :
             while True :
-                line_raw = await self._fileread.readline()
+                line_raw = await self._sreader.readline()
                 elements = line_raw.decode().strip().split(':', 1)
                 if len(elements) == 2 :
                     self._headers[elements[0].strip().lower()] = elements[1].strip()
@@ -494,7 +467,7 @@ class MicroWebSrv :
                 size = self._contentLength
             if size > 0 :
                 try :
-                    content = await self._fileread.read(size)
+                    content = await self._sreader.read(size)
                     return content
                 except :
                     pass
@@ -543,8 +516,8 @@ class MicroWebSrv :
                 if type(data) == str :
                     data = data.encode(strEncoding)
                 # data = memoryview(data)
-                self._client._filewrite.write(data)
-                await self._client._filewrite.drain()
+                self._client._swriter.write(data)
+                await self._client._swriter.drain()
                 # while data :
                 #     n = self._client._socketfile.write(data)
                 #     if n is None :
@@ -612,8 +585,6 @@ class MicroWebSrv :
                     await self._writeHeader(header, headers[header])
             await self._writeServerHeader()
             await self._writeEndHeader()
-            # if self._client._socketfile is not self._client._socket :
-            #     self._client._socketfile.flush()   # CPython needs flush to continue protocol
 
         # ------------------------------------------------------------------------
 

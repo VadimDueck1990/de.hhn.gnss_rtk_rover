@@ -4,6 +4,8 @@ Handles the web requests and manages the websocket connection
 Created on 4 Sep 2022
 :author: vdueck
 """
+
+import ujson
 import uasyncio
 import utime
 from pyubx2.ubxtypes_core import FIXTYPES
@@ -58,6 +60,8 @@ class RequestHandler:
                            ("/ntrip", "GET", cls._getNtripStatus),
                            ("/satsystems", "GET", cls._getSatSystems),
                            ("/satsystems", "POST", cls._setSatSystems),
+                           ("/event-stream/position", "GET", cls._getPositionSSE),
+                           ("/event-stream/precision", "GET", cls._getPrecisionSSE),
                            ("/event-stream/time", "GET", cls._getTime),
                            ("/event-stream/lat", "GET", cls._getLat),
                            ("/event-stream/lon", "GET", cls._getLon),
@@ -65,6 +69,8 @@ class RequestHandler:
                            ("/event-stream/fix", "GET", cls._getFixType)]
 
         srv = MicroWebSrv(routeHandlers=_route_handlers, webPath='/webapi/www/')
+        srv.MaxWebSocketRecvLen = 256
+        srv.AcceptWebSocketCallback = cls.cb_accept_ws
         await srv.Start()
 
     @classmethod
@@ -95,6 +101,19 @@ class RequestHandler:
             await http_response.WriteResponseJSONOk(response)
         except Exception as ex:
             await http_response.WriteResponseJSONError(400)
+
+    @classmethod
+    async def _getPrecisionSSE(cls, http_client, http_response):
+        try:
+            hAcc, vAcc = await GnssHandler.get_precision()
+            precision = {"hAcc": hAcc, "vAcc": vAcc}
+            data = ujson.dumps(precision)
+        except Exception:
+            data = "Attempting to get data from receiver..."
+        await http_response.WriteResponseOk(headers=({'Cache-Control': 'no-cache'}),
+                                            contentType='text/event-stream',
+                                            contentCharset='UTF-8',
+                                            content='data: {0}\n\n'.format(data))
 
     @classmethod
     async def _enableNTRIP(cls, http_client, http_response):
@@ -159,6 +178,21 @@ class RequestHandler:
             await http_response.WriteResponseJSONError(400)
 
     @classmethod
+    async def _getPositionSSE(cls, http_client, http_response):
+        try:
+            if utime.ticks_diff(utime.ticks_ms(), cls._last_pos) > 5000:
+                print("difference: " + str(utime.ticks_diff(utime.ticks_ms(), cls._last_pos)))
+                print("polling new position data")
+                cls._position_data = await GnssHandler.get_position()
+                cls._last_pos = utime.ticks_ms()
+            position = ujson.dumps(cls._position_data)
+        except Exception:
+            position = "Attempting to get data from receiver..."
+        await http_response.WriteResponseOk(headers=({'Cache-Control': 'no-cache'}),
+                                            contentType='text/event-stream',
+                                            contentCharset='UTF-8',
+                                            content='data: {0}\n\n'.format(position))
+    @classmethod
     async def _getTime(cls, http_client, http_response):
         try:
             if utime.ticks_diff(utime.ticks_ms(), cls._last_pos) > 5000:
@@ -218,3 +252,36 @@ class RequestHandler:
                                             contentType='text/event-stream',
                                             contentCharset='UTF-8',
                                             content='data: {0}\n\n'.format(fixtype_string))
+
+    # Websocket
+    #--------------------------------------------------------------------------------------------
+
+    @classmethod
+    async def cb_receive_text(cls, webSocket, msg):
+        print("WS RECV TEXT : %s" % msg)
+        await webSocket.SendText("Reply for %s" % msg)
+
+    @classmethod
+    async def cb_receive_binary(cls, webSocket, data):
+        print("WS RECV DATA : %s" % data)
+        await uasyncio.sleep(1)
+
+    @classmethod
+    async def cb_closed(cls, webSocket):
+        print("WS CLOSED")
+        await uasyncio.sleep(1)
+
+    @classmethod
+    async def cb_send_position(cls, websocket):
+
+        position = await GnssHandler.get_position() # Store data in dict
+        await websocket.SendText(str(ujson.dumps(position)))  # Convert data to JSON and send
+
+    @classmethod
+    async def cb_accept_ws(cls, webSocket, httpClient):
+        print("WS ACCEPT")
+        webSocket.RecvTextCallback = cls.cb_receive_text
+        webSocket.RecvBinaryCallback = cls.cb_receive_binary
+        webSocket.ClosedCallback = cls.cb_closed
+        while not webSocket.IsClosed():
+            await cls.cb_send_position(webSocket)

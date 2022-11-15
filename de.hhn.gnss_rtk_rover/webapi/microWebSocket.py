@@ -9,6 +9,9 @@ from   struct      import pack
 from   _thread     import start_new_thread, allocate_lock
 import gc
 
+import uasyncio
+
+
 class MicroWebSocket :
 
     # ============================================================================
@@ -67,8 +70,20 @@ class MicroWebSocket :
     # ===( Constructor )==========================================================
     # ============================================================================
 
-    def __init__(self, socket, httpClient, httpResponse, maxRecvLen, threaded, acceptCallback) :
-        self._socket            = socket
+    def __init__(self) :
+        self._sreader           = None
+        self._swriter           = None
+        self._httpCli           = None
+        self._closed            = True
+        self._lock              = None
+        self.RecvTextCallback   = None
+        self.RecvBinaryCallback = None
+        self.ClosedCallback     = None
+
+
+    async def run(self, sreader: uasyncio.StreamReader, swriter: uasyncio.StreamWriter, httpClient, httpResponse, maxRecvLen, acceptCallback) :
+        self._sreader           = sreader
+        self._swriter           = swriter
         self._httpCli           = httpClient
         self._closed            = True
         self._lock              = allocate_lock()
@@ -76,28 +91,19 @@ class MicroWebSocket :
         self.RecvBinaryCallback = None
         self.ClosedCallback     = None
 
-        if hasattr(socket, 'read'):   # MicroPython
-            self._socketfile = self._socket
-        else:   # CPython
-            self._socketfile = self._socket.makefile('rwb')
-
-        if self._handshake(httpResponse) :
+        print("inside websocket.run(): starting ws task")
+        if await self._handshake(httpResponse) :
             self._ctrlBuf = MicroWebSocket._tryAllocByteArray(0x7D)
             self._msgBuf  = MicroWebSocket._tryAllocByteArray(maxRecvLen)
             if self._ctrlBuf and self._msgBuf :
                 self._msgType = None
                 self._msgLen  = 0
-                if threaded :
-                    if MicroWebSocket._tryStartThread(self._wsProcess, (acceptCallback, )) :
-                        return
-                else :
-                    self._wsProcess(acceptCallback)
-                    return
+                await self._wsProcess(acceptCallback)
+                return
             print("MicroWebSocket : Out of memory on new WebSocket connection.")
         try :
-            if self._socketfile is not self._socket:
-                self._socketfile.close()
-            self._socket.close()
+            await self._sreader.wait_closed()
+            await self._swriter.wait_closed()
         except :
             pass
 
@@ -105,14 +111,14 @@ class MicroWebSocket :
     # ===( Functions )============================================================
     # ============================================================================
 
-    def _handshake(self, httpResponse) :
+    async def _handshake(self, httpResponse) :
         try :
             key = self._httpCli.GetRequestHeaders().get('sec-websocket-key', None)
             if key :
                 key += self._handshakeSign
                 r = sha1(key.encode()).digest()
                 r = b2a_base64(r).decode().strip()
-                httpResponse.WriteSwitchProto("websocket", { "Sec-WebSocket-Accept" : r })
+                await httpResponse.WriteSwitchProto("websocket", { "Sec-WebSocket-Accept" : r })
                 return True
         except :
             pass
@@ -120,27 +126,28 @@ class MicroWebSocket :
 
     # ----------------------------------------------------------------------------
 
-    def _wsProcess(self, acceptCallback) :
-        self._socket.settimeout(3600)
+    async def _wsProcess(self, acceptCallback) :
         self._closed = False
-        try :
-            acceptCallback(self, self._httpCli)
-        except Exception as ex :
-            print("MicroWebSocket : Error on accept callback (%s)." % str(ex))
+        # try :
+        await acceptCallback(self, self._httpCli)
+        # except Exception as ex :
+        #     print("MicroWebSocket : Error on accept callback (%s)." % str(ex))
         while not self._closed :
-            if not self._receiveFrame() :
-                self.Close()
+            result = await self._receiveFrame()
+            if not result :
+                await uasyncio.sleep(1)
+                await self.Close()
         if self.ClosedCallback :
-            try :
-                self.ClosedCallback(self)
-            except Exception as ex :
-                print("MicroWebSocket : Error on closed callback (%s)." % str(ex))
+            # try :
+            await self.ClosedCallback(self)
+            # except Exception as ex :
+            #     print("MicroWebSocket : Error on closed callback (%s)." % str(ex))
 
     # ----------------------------------------------------------------------------
 
-    def _receiveFrame(self) :
+    async def _receiveFrame(self) :
         try :
-            b = self._socketfile.read(2)
+            b = await self._sreader.read(2)
             if not b or len(b) != 2 :
                 return False
 
@@ -157,26 +164,23 @@ class MicroWebSocket :
                 self._msgType = self._msgTypeBin
 
             if length == 0x7E :
-                b = self._socketfile.read(2)
+                b = await self._sreader.read(2)
                 if not b or len(b) != 2 :
                     return False
                 length = (b[0] << 8) + b[1]
             elif length == 0x7F :
                 return False
-
-            mask = self._socketfile.read(4) if masked else None
+            mask = await self._sreader.read(4) if masked else None
             if masked and (not mask or len(mask) != 4) :
                 return False
-
             if opcode == self._opContFrame or \
                opcode == self._opTextFrame or \
                opcode == self._opBinFrame :
-
                 if length > 0 :
                     buf = memoryview(self._msgBuf)[self._msgLen:]
                     if length > len(buf) :
                         return False
-                    x = self._socketfile.readinto(buf[0:length])
+                    x = await self._sreader.readinto(buf[0:length])
                     if x != length :
                         return False
                     if masked :
@@ -189,13 +193,13 @@ class MicroWebSocket :
                         if self._msgType == self._msgTypeText :
                             if self.RecvTextCallback :
                                 try :
-                                    self.RecvTextCallback(self, b.decode())
+                                    await self.RecvTextCallback(self, b.decode())
                                 except Exception as ex :
                                     print("MicroWebSocket : Error on recv text callback (%s)." % str(ex))
                         else :
                             if self.RecvBinaryCallback :
                                 try :
-                                    self.RecvBinaryCallback(self, b)
+                                    await self.RecvBinaryCallback(self, b)
                                 except Exception as ex :
                                     print("MicroWebSocket : Error on recv binary callback (%s)." % str(ex))
                         self._msgType = None
@@ -208,57 +212,56 @@ class MicroWebSocket :
                 if length > len(self._ctrlBuf) :
                     return False
                 if length > 0 :
-                    x = self._socketfile.readinto(self._ctrlBuf[0:length])
+                    x = await self._sreader.readinto(self._ctrlBuf[0:length])
                     if x != length :
                         return False
                     pingData = memoryview(self._ctrlBuf)[:length]
                 else :
                     pingData = None
-                self._sendFrame(self._opPongFrame, pingData)
+                await self._sendFrame(self._opPongFrame, pingData)
 
             elif opcode == self._opCloseFrame :
-                self.Close()
+                await self.Close()
 
         except :
             return False
 
+        print("inside websocket._receiveFrame(): SUCCESS")
         return True
 
     # ----------------------------------------------------------------------------
 
-    def _sendFrame(self, opcode, data=None, fin=True) :
+    async def _sendFrame(self, opcode, data=None, fin=True) :
         if not self._closed and opcode >= 0x00 and opcode <= 0x0F :
             dataLen = 0 if not data else len(data)
             if dataLen <= 0xFFFF :
                 b1 = (0x80 | opcode) if fin else opcode
                 b2 = 0x7E if dataLen >= 0x7E else dataLen
-                self._lock.acquire()
-                try :
-                    if self._socketfile.write(pack('>BB', b1, b2)) == 2 :
-                        if dataLen > 0 :
-                            if dataLen >= 0x7E :
-                                self._socketfile.write(pack('>H', dataLen))
-                            ret = self._socketfile.write(data) == dataLen
-                        else :
-                            ret = True
-                        if self._socketfile is not self._socket :
-                            self._socketfile.flush()   # CPython needs flush to continue protocol
-                        self._lock.release()
-                        return ret
-                except :
-                    pass
-                self._lock.release()
+                # try :
+                msg = pack('>BB', b1, b2)
+                self._swriter.write(msg)
+                await self._swriter.drain()
+                if dataLen > 0 :
+                    if dataLen >= 0x7E :
+                        self._swriter.write(pack('>H', dataLen))
+                        await self._swriter.drain()
+                    self._swriter.write(data)
+                    await self._swriter.drain()
+                    ret = True
+                else:
+                    ret = True
+                return ret
         return False
 
     # ----------------------------------------------------------------------------
 
-    def SendText(self, msg) :
-        return self._sendFrame(self._opTextFrame, msg.encode())
+    async def SendText(self, msg) :
+        return await self._sendFrame(self._opTextFrame, msg.encode())
 
     # ----------------------------------------------------------------------------
 
-    def SendBinary(self, data) :
-        return self._sendFrame(self._opBinFrame, data)
+    async def SendBinary(self, data) :
+        return await self._sendFrame(self._opBinFrame, data)
 
     # ----------------------------------------------------------------------------
 
@@ -267,13 +270,13 @@ class MicroWebSocket :
 
     # ----------------------------------------------------------------------------
 
-    def Close(self) :
+    async def Close(self) :
+        print("closing websocket")
         if not self._closed :
             try :
-                self._sendFrame(self._opCloseFrame)
-                if self._socketfile is not self._socket:
-                    self._socketfile.close()
-                self._socket.close()
+                await self._sendFrame(self._opCloseFrame)
+                await self._sreader.wait_closed()
+                await self._swriter.wait_closed()
                 self._closed = True
             except :
                 pass
