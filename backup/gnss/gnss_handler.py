@@ -12,17 +12,14 @@ Created on 4 Sep 2022
 """
 import gc
 
-import uasyncio
-from gnss.message_types import PositionData, Accuracy
-from utils.mem_debug import debug_gc
-import utime
+import micropython
+import network
 from primitives.queue import Queue
 from pyubx2.ubxmessage import UBXMessage
 from pyubx2.ubxtypes_configdb import SET_LAYER_RAM, POLL_LAYER_RAM
 from pyubx2.ubxtypes_core import POLL, SET, GET, UBX_MSGIDS
+
 gc.collect()
-
-
 class GnssHandler:
     """
     GnssHandler class.
@@ -34,19 +31,6 @@ class GnssHandler:
     _ack_nack_q = None
     _msg_q = None
     _pos_q = None
-
-    rtcm_enabled = None
-    ntrip_lock = None
-    ntrip_stop_event = None
-
-    _update_interval = None
-    _last_pos_time = None
-    _last_acc_time = None
-    _last_ntrip_time = None
-
-    # cache variables to save uart requests
-    _position: PositionData
-    _accuracy: Accuracy
 
     # predefined strings
     _config_key_gps = "CFG_SIGNAL_GPS_ENA"
@@ -71,9 +55,7 @@ class GnssHandler:
                    nav_pvt_q: Queue,
                    ack_nack_q: Queue,
                    msg_q: Queue,
-                   pos_q: Queue,
-                   ntrip_lock: uasyncio.Lock,
-                   stop_event: uasyncio.Event):
+                   pos_q: Queue):
         """Initialization method.
         :param object app: The calling app
         :param primitives.queue.Queue gga_q: queue for incoming gga messages
@@ -81,9 +63,6 @@ class GnssHandler:
         :param primitives.queue.Queue nav_pvt_q: queue for incoming ubx NAV-PVT get messaged
         :param primitives.queue.Queue ack_nack_q: queue for incoming ubx ACK-NACK messages
         :param primitives.queue.Queue msg_q: queue for outgoing ubx messages
-        :param primitives.queue.Queue pos_q: queue for the main position data
-        :param uasyncio.Lock ntrip_lock: lock for reading the rtcm_enabled flag
-        :param uasyncio.Event stop_event: handling the ntrip client (stop/resume)
         """
         cls._app = app
         cls._gga_q = gga_q
@@ -92,16 +71,6 @@ class GnssHandler:
         cls._ack_nack_q = ack_nack_q
         cls._msg_q = msg_q
         cls._pos_q = pos_q
-        cls.rtcm_enabled = False
-        cls.ntrip_lock = ntrip_lock
-        cls.ntrip_stop_event = stop_event
-
-        cls._update_interval = 5000
-        cls._last_pos_time = utime.ticks_ms()
-        cls._last_acc_time = utime.ticks_ms()
-        cls._last_ntrip_time = utime.ticks_ms()
-
-        cls._accuracy = Accuracy(0, 0)
 
         gc.collect()
 
@@ -227,17 +196,13 @@ class GnssHandler:
         return result
 
     @classmethod
-    async def get_precision(cls, realtime: bool) -> Accuracy:
+    async def get_precision(cls) -> tuple:
         """
         ASYNC: Gets precision of measurement
 
         :return: hAcc, Vacc
         :rtype: int, int
         """
-        if utime.ticks_diff(utime.ticks_ms(), cls._last_acc_time) < cls._update_interval:
-            if not realtime:
-                return cls._accuracy
-
         await cls._flush_receive_qs()
         msg = UBXMessage(
             cls._nav_cls,
@@ -249,10 +214,9 @@ class GnssHandler:
         # if ack.msg_id == b'\x01':  # ACK-ACK
         h_acc = nav.__dict__["hAcc"]
         v_acc = nav.__dict__["vAcc"]
-        cls._accuracy = Accuracy(h_acc, v_acc)
-        cls._last_acc_time = utime.ticks_ms()
         gc.collect()
-        return cls._accuracy
+        print("nav pvt: " + str(nav))
+        return h_acc, v_acc
 
     @classmethod
     async def get_fixtype(cls) -> int:
@@ -267,9 +231,26 @@ class GnssHandler:
         return position["fixType"]
 
     @classmethod
-    async def get_satellites_in_use(cls) -> dict:
+    async def get_precision_position(cls):
         """
-        TODO: funktioniert nicht als ubx-Abfrage, frisst den gesamten heap!!!
+        ASYNC: Gets "NAV-HPPOSLLH" message
+
+        :return: fixtype
+        :rtype: int
+        """
+        await cls._flush_receive_qs()
+        msg = UBXMessage(
+            cls._nav_cls,
+            "NAV-HPPOSLLH",
+            GET
+        )
+        await cls._msg_q.put(msg.serialize())
+        nav = await cls._nav_msg_q.get()
+        print(str(nav))
+
+    @classmethod
+    async def get_satellites_in_use(cls) -> UBXMessage:
+        """
         ASYNC: Get the satellites used in navigation
         ATTENTION: Method does not work yet. Uses to much heap to create NAV-SAT Message!!!!!!!!
         :return: UBXMessage NAV-SAT containing satellites with details
@@ -282,7 +263,6 @@ class GnssHandler:
             cls._nav_sat,
             GET
         )
-        debug_gc()
         await cls._msg_q.put(msg.serialize())
         nav = await cls._nav_msg_q.get()
         gc.collect()
@@ -312,48 +292,59 @@ class GnssHandler:
             return False  # ACK-NACK
 
     @classmethod
-    def enableNTRIP(cls, enable: int):
+    async def set_uart2_baudrate(cls, rate: int) -> bool:
         """
-        Enable/Disable NTRIP client
-        sets/clears the stopevent for the GNSSNtripClient.run() task
+        ASYNC: Enable/Disable High Precision mode
 
         :param int enable: 0 = enable / 1 = disable
         :return: True if successful, False if failed
         :rtype: bool
         """
-        if enable == 1:
-            cls.ntrip_stop_event.clear()
+        await cls._flush_receive_qs()
+        layer = SET_LAYER_RAM  # volatile memory
+        transaction = 0
+        cfg_data = [(cls._config_key_hpm, rate)]
+        msg = UBXMessage.config_set(layer, transaction, cfg_data)
+        await cls._msg_q.put(msg.serialize())
+        ack = await cls._ack_nack_q.get()
+        if ack.msg_id == b'\x01':  # ACK-ACK
+            gc.collect()
+            return True
         else:
-            cls.ntrip_stop_event.set()
+            gc.collect()
+            return False  # ACK-NACK
 
     @classmethod
-    async def get_ntrip_status(cls) -> bool:
+    async def set_rtcm_status_update(cls) -> bool:
         """
-        Enable/Disable NTRIP client
-        sets/clears the stopevent for the GNSSNtripClient.run() task
+        ASYNC: Gets "NAV-HPPOSLLH" message
 
-        :param int enable: 0 = enable / 1 = disable
-        :return: True if successful, False if failed
-        :rtype: bool
-        """
-        async with cls.ntrip_lock:
-            if GnssHandler.rtcm_enabled:
-                return True
-            else:
-                return False
-
-    @classmethod
-    async def get_position(cls) -> PositionData:
-        """
-        ASYNC: Gets the position dictionary with: time, latitude, longitude, elevation and fixtype
-
-        :return: number representing ms between updates
+        :return: fixtype
         :rtype: int
         """
         await cls._flush_receive_qs()
-
-        position = await cls._pos_q.get()
-        return position
+        for (msgid, msgname) in UBX_MSGIDS.items():
+            if msgid[0] == 0x02:  # RXM
+                if msgid[1] == 0x32:  # RXM-RTCM
+                    msgnmea = UBXMessage(
+                        cls._cfg_cls,
+                        cls._cfg_msg,
+                        SET,
+                        msgClass=msgid[0],
+                        msgID=msgid[1],
+                        rateUART1=1,
+                        rateUSB=0,
+                    )
+                    print(str(msgnmea))
+                    await cls._msg_q.put(msgnmea.serialize())
+                    gc.collect()
+        ack = await cls._ack_nack_q.get()
+        if ack.msg_id == b'\x01':  # ACK-ACK
+            gc.collect()
+            return True
+        else:
+            gc.collect()
+            return False  # ACK-NACK
 
     @classmethod
     async def set_minimum_nmea_msgs(cls):
@@ -382,7 +373,16 @@ class GnssHandler:
                 gc.collect()
         while not cls._ack_nack_q.empty:
             await cls._ack_nack_q.get()
+
         gc.collect()
+
+    @classmethod
+    async def run_get_precision(cls, wifi: network.WLAN):
+        """
+        ASYNC: Empty all receiving queues
+        """
+        while wifi.isconnected():
+            await cls.get_precision_position()
 
     @classmethod
     async def _flush_receive_qs(cls):

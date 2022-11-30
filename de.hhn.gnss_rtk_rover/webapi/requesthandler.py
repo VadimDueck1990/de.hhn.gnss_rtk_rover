@@ -4,10 +4,12 @@ Handles the web requests and manages the websocket connection
 Created on 4 Sep 2022
 :author: vdueck
 """
-
+import gc
 import ujson
 import uasyncio
 import utime
+
+from gnss.message_types import PositionData, Accuracy, RealTimeMessage
 from pyubx2.ubxtypes_core import FIXTYPES
 from gnss.gnss_handler import GnssHandler
 from webapi.microWebSrv import MicroWebSrv
@@ -27,6 +29,7 @@ class RequestHandler:
     _rtcm_lock = None
     _last_pos = None
     _acc_interval = None
+    _send_position_task = None
 
     # data cache to save on UART reads/writes
     _position_data = None
@@ -55,6 +58,7 @@ class RequestHandler:
         _route_handlers = [("/rate", "GET", cls._getUpdateRate),
                            ("/rate", "POST", cls._setUpdateRate),
                            ("/precision", "GET", cls._getPrecision),
+                           ("/satellites", "GET", cls._getSatellites),
                            ("/position", "GET", cls._getPosition),
                            ("/ntrip", "POST", cls._enableNTRIP),
                            ("/ntrip", "GET", cls._getNtripStatus),
@@ -94,20 +98,28 @@ class RequestHandler:
             await http_response.WriteResponseJSONError(400)
 
     @classmethod
+    async def _getSatellites(cls, http_client, http_response):
+        try:
+            navsat = await GnssHandler.get_satellites_in_use()
+            response = ujson.dumps(navsat)
+            await http_response.WriteResponseJSONOk(response)
+        except Exception as ex:
+            await http_response.WriteResponseJSONError(400)
+
+    @classmethod
     async def _getPrecision(cls, http_client, http_response):
         try:
-            hAcc, vAcc = await GnssHandler.get_precision()
-            response = {"hAcc": hAcc, "vAcc": vAcc}
-            await http_response.WriteResponseJSONOk(response)
+            precision = await GnssHandler.get_precision(False)
+            data = ujson.dumps(precision.__dict__)
+            await http_response.WriteResponseJSONOk(data)
         except Exception as ex:
             await http_response.WriteResponseJSONError(400)
 
     @classmethod
     async def _getPrecisionSSE(cls, http_client, http_response):
         try:
-            hAcc, vAcc = await GnssHandler.get_precision()
-            precision = {"hAcc": hAcc, "vAcc": vAcc}
-            data = ujson.dumps(precision)
+            precision = await GnssHandler.get_precision(False)
+            data = ujson.dumps(precision.__dict__)
         except Exception:
             data = "Attempting to get data from receiver..."
         await http_response.WriteResponseOk(headers=({'Cache-Control': 'no-cache'}),
@@ -269,13 +281,23 @@ class RequestHandler:
     @classmethod
     async def cb_closed(cls, webSocket):
         print("WS CLOSED")
+        cls._send_position_task.cancel()
         await uasyncio.sleep(1)
 
     @classmethod
     async def cb_send_position(cls, websocket):
-
-        position = await GnssHandler.get_position() # Store data in dict
-        await websocket.SendText(str(ujson.dumps(position)))  # Convert data to JSON and send
+        position: PositionData
+        accuracy: Accuracy
+        realtime_message: RealTimeMessage
+        rtcm: bool
+        while not websocket.IsClosed():
+            position = await GnssHandler.get_position() # Store data in dict
+            accuracy = await GnssHandler.get_precision(False)
+            rtcm = await GnssHandler.get_ntrip_status()
+            realtime_message = RealTimeMessage(position, accuracy, rtcm)
+            print(str(realtime_message.__dict__))
+            await websocket.SendText(str(ujson.dumps(realtime_message.__dict__)))  # Convert data to JSON and send
+        gc.collect()
 
     @classmethod
     async def cb_accept_ws(cls, webSocket, httpClient):
@@ -283,5 +305,4 @@ class RequestHandler:
         webSocket.RecvTextCallback = cls.cb_receive_text
         webSocket.RecvBinaryCallback = cls.cb_receive_binary
         webSocket.ClosedCallback = cls.cb_closed
-        while not webSocket.IsClosed():
-            await cls.cb_send_position(webSocket)
+        cls._send_position_task = uasyncio.create_task(cls.cb_send_position(webSocket))
